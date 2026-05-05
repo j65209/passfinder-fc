@@ -785,6 +785,34 @@
     width: 100%;
     max-width: 380px;
     text-align: center;
+    position: relative;
+  }
+  .admin-corner-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    z-index: 1;
+    font-family: var(--font-body);
+    transition: all 0.15s;
+  }
+  .admin-corner-btn:active {
+    transform: scale(0.92);
+    background: var(--bg-elevated);
+  }
+  .login-hint {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-top: 10px;
+    line-height: 1.6;
+    text-align: center;
   }
   .login-card .logo {
     width: 64px;
@@ -987,18 +1015,19 @@
 <!-- 로그인 화면 -->
 <div id="loginScreen" class="login-screen">
   <div class="login-card">
+    <button class="admin-corner-btn" id="toggleAdminLogin" title="운영자 모드">⚙️</button>
     <div class="logo">PF</div>
     <h2>패스파인더 FC</h2>
     <div class="login-sub">PASSFINDER FC</div>
 
-    <!-- 팀원 로그인 -->
+    <!-- 회원가입 / 로그인 -->
     <div class="login-mode active" id="memberMode">
       <label>이름</label>
-      <select id="loginMemberName"><option value="">선택...</option></select>
-      <label>전화 뒷자리 4자리</label>
-      <input type="tel" id="loginMemberPhone" placeholder="0000" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off">
-      <button class="login-btn" id="loginMemberBtn">팀원 로그인</button>
-      <button class="login-link" id="toggleAdminLogin">운영자세요? →</button>
+      <input type="text" id="loginMemberName" placeholder="홍길동" autocomplete="name">
+      <label>연락처 (- 없이 입력)</label>
+      <input type="tel" id="loginMemberPhone" placeholder="01012345678" inputmode="numeric" pattern="[0-9]{4,15}" maxlength="15" autocomplete="tel">
+      <button class="login-btn" id="loginMemberBtn">회원가입</button>
+      <p class="login-hint">처음이시면 자동으로 가입돼요.<br>같은 이름+연락처로 다시 들어오면 자동 로그인.</p>
     </div>
 
     <!-- 운영자 로그인 -->
@@ -1006,7 +1035,7 @@
       <label>운영자 PIN</label>
       <input type="password" id="adminPin" placeholder="••••" inputmode="numeric" maxlength="8" autocomplete="off">
       <button class="login-btn" id="loginAdminBtn">운영자 로그인</button>
-      <button class="login-link" id="toggleMemberLogin">← 팀원 로그인</button>
+      <button class="login-link" id="toggleMemberLogin">← 회원으로 돌아가기</button>
     </div>
 
     <!-- 첫 운영자 PIN 설정 (DB에 PIN 없을 때만 표시) -->
@@ -1124,9 +1153,10 @@ async function loginAdmin(pin) {
 }
 
 async function loginMember(name, phone) {
-  const { data, error } = await sb.rpc('login_member', { p_name: name, p_phone: phone });
+  // signup_member: 이미 있으면 ID 반환(로그인), 없으면 새로 생성(가입)
+  const { data, error } = await sb.rpc('signup_member', { p_name: name, p_phone: phone });
   if (error) return { ok: false, msg: '오류: ' + error.message };
-  if (!data) return { ok: false, msg: '이름 또는 뒷자리가 일치하지 않아요.' };
+  if (!data) return { ok: false, msg: '실패. 다시 시도해주세요.' };
   state.user = { role: 'member', id: data, name };
   localStorage.setItem('pf_member', JSON.stringify({ id: data, name }));
   return { ok: true };
@@ -1218,7 +1248,7 @@ async function actionVote(matchId, memberId, vote) {
 
 async function actionAddMember(name, phone) {
   if (!isAdmin()) { alert('운영자만 추가할 수 있어요.'); return false; }
-  const { error } = await sb.from('members').insert({ name, phone_last4: phone, joined: new Date().toISOString().slice(0,10) });
+  const { error } = await sb.from('members').insert({ name, phone, joined: new Date().toISOString().slice(0,10) });
   if (error) { alert('실패: ' + error.message); return false; }
   await loadAll();
   render();
@@ -1628,7 +1658,7 @@ function renderFees() {
     ${!isAdmin() ? `<div class="info-banner"><strong>👀 조회 전용</strong>회비 입력은 운영자만 가능해요.</div>` : ''}
 
     ${isAdmin() ? `
-      <div class="admin-quick-bar">
+      <div class="admin-quick-bar" style="grid-template-columns: 1fr 1fr;">
         <button class="qb-btn qb-warning" id="qbShare" ${unpaidCount === 0 ? 'disabled' : ''}>
           <span class="qb-emoji">📋</span>
           미납자<br>카톡 공유
@@ -1636,10 +1666,6 @@ function renderFees() {
         <button class="qb-btn" id="qbBank">
           <span class="qb-emoji">🏦</span>
           모임통장<br>열기
-        </button>
-        <button class="qb-btn qb-accent" id="qbAllPay" ${unpaidCount === 0 ? 'disabled' : ''}>
-          <span class="qb-emoji">✓</span>
-          전체<br>납부 처리
         </button>
       </div>
 
@@ -1680,8 +1706,7 @@ function renderFees() {
           </div>
           ${isAdmin() ? `
             <div class="fees-row-bottom">
-              <button class="btn btn-toss" data-pay="${m.id}:toss">토스로 받기</button>
-              <button class="btn btn-kakao" data-pay="${m.id}:kakao">카카오로 받기</button>
+              <button class="btn btn-primary" data-pay-mark="${m.id}" style="width:100%;">✓ 납부 완료</button>
             </div>
           ` : ''}
         </div>
@@ -1713,11 +1738,10 @@ function renderFees() {
     ` : ''}
   `;
 
-  document.querySelectorAll('[data-pay]').forEach(btn => {
+  document.querySelectorAll('[data-pay-mark]').forEach(btn => {
     btn.addEventListener('click', async () => {
       haptic();
-      const [memberId, method] = btn.dataset.pay.split(':');
-      await actionPay(memberId, month, method);
+      await actionPay(btn.dataset.payMark, month, 'transfer');
     });
   });
   document.querySelectorAll('[data-undo]').forEach(btn => {
@@ -1730,7 +1754,6 @@ function renderFees() {
   // 운영자 빠른가기 버튼
   document.getElementById('qbShare')?.addEventListener('click', () => { haptic(); actionShareUnpaid(); });
   document.getElementById('qbBank')?.addEventListener('click', () => { haptic(); actionGoToBank(); });
-  document.getElementById('qbAllPay')?.addEventListener('click', () => { haptic(); actionPayAll(); });
   document.getElementById('qbSettings')?.addEventListener('click', () => { haptic(); openBankSettings(); });
 }
 
@@ -1738,13 +1761,12 @@ function renderMembers() {
   document.getElementById('panel-members').innerHTML = `
     <div class="section-header">
       <div class="section-title">팀원 ${state.members.length}명</div>
-      ${isAdmin() ? `<button class="btn btn-primary" id="toggleAdd">+ 추가</button>` : ''}
     </div>
 
-    <div id="addFormContainer"></div>
+    ${!isAdmin() ? `<div class="info-banner" style="margin-bottom:12px;"><strong>📲 회원가입은 직접</strong>새 팀원이 링크 접속 → 본인 정보 입력 → 자동 등록</div>` : ''}
 
     ${state.members.length === 0 ? `
-      <div class="empty-state">${isAdmin() ? '+ 추가 버튼을 눌러 팀원을 등록하세요' : '아직 팀원이 등록되지 않았어요'}</div>
+      <div class="empty-state">${isAdmin() ? '아직 가입한 팀원이 없어요. 사이트 링크를 공유하면 본인이 직접 가입할 수 있어요.' : '아직 팀원이 등록되지 않았어요'}</div>
     ` : state.members.map(m => `
       <div class="row">
         <div class="row-left">
@@ -1759,37 +1781,6 @@ function renderMembers() {
   `;
 
   if (!isAdmin()) return;
-
-  let showingAdd = false;
-  document.getElementById('toggleAdd')?.addEventListener('click', (e) => {
-    haptic();
-    showingAdd = !showingAdd;
-    const container = document.getElementById('addFormContainer');
-    if (showingAdd) {
-      container.innerHTML = `
-        <div class="add-form" style="flex-direction:column;align-items:stretch;">
-          <input type="text" id="newName" placeholder="이름" autocomplete="off">
-          <input type="tel" id="newPhone" placeholder="전화 뒷자리 4자리 (예: 1234)" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off">
-          <button class="btn btn-primary add-form-btn" id="confirmAdd">추가하기</button>
-        </div>
-      `;
-      document.getElementById('newName').focus();
-      document.getElementById('confirmAdd').addEventListener('click', addMemberSubmit);
-      e.target.textContent = '취소';
-    } else {
-      container.innerHTML = '';
-      e.target.textContent = '+ 추가';
-    }
-  });
-
-  async function addMemberSubmit() {
-    const name = document.getElementById('newName').value.trim();
-    const phone = document.getElementById('newPhone').value.trim();
-    if (!name) { alert('이름을 입력하세요.'); return; }
-    if (!/^[0-9]{4}$/.test(phone)) { alert('전화 뒷자리 4자리를 정확히 입력하세요.'); return; }
-    haptic();
-    await actionAddMember(name, phone);
-  }
 
   document.querySelectorAll('[data-remove]').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -1820,7 +1811,6 @@ async function showLogin() {
     // 일반 로그인 모드
     document.querySelectorAll('.login-mode').forEach(el => el.classList.remove('active'));
     document.getElementById('memberMode').classList.add('active');
-    await populateMemberDropdown();
   }
 }
 
@@ -1844,10 +1834,10 @@ async function populateMemberDropdown() {
 
 // 로그인 이벤트 핸들러들
 document.getElementById('loginMemberBtn').addEventListener('click', async () => {
-  const name = document.getElementById('loginMemberName').value;
+  const name = document.getElementById('loginMemberName').value.trim();
   const phone = document.getElementById('loginMemberPhone').value.trim();
-  if (!name) { alert('이름을 선택하세요.'); return; }
-  if (!/^[0-9]{4}$/.test(phone)) { alert('전화 뒷자리 4자리를 입력하세요.'); return; }
+  if (!name) { alert('이름을 입력하세요.'); return; }
+  if (!/^[0-9]{4,15}$/.test(phone)) { alert('연락처를 숫자만(- 없이) 입력하세요.'); return; }
   const result = await loginMember(name, phone);
   if (!result.ok) { alert(result.msg); return; }
   hideLogin();
