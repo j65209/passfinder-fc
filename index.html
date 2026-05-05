@@ -758,9 +758,208 @@
     .stats-grid { grid-template-columns: repeat(3, 1fr); }
     .summary-pill .num { font-size: 36px; }
   }
+
+  /* === LOGIN SCREEN === */
+  .login-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    background-image:
+      radial-gradient(circle at 15% 0%, rgba(0,255,136,0.08), transparent 40%),
+      radial-gradient(circle at 85% 100%, rgba(77,171,255,0.06), transparent 40%);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 24px;
+    padding-top: calc(var(--safe-top) + 24px);
+    overflow-y: auto;
+  }
+  .login-screen.show { display: flex; }
+
+  .login-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px 24px;
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+  }
+  .login-card .logo {
+    width: 64px;
+    height: 64px;
+    font-size: 28px;
+    margin: 0 auto 14px;
+  }
+  .login-card h2 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 24px;
+    margin: 0 0 4px;
+    letter-spacing: 0.5px;
+  }
+  .login-card .login-sub {
+    color: var(--text-muted);
+    font-size: 11px;
+    letter-spacing: 2px;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+  .login-mode {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .login-mode.active { display: flex; }
+  .login-mode label {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-top: 10px;
+    margin-bottom: -4px;
+  }
+  .login-mode .hint {
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1.6;
+    text-align: left;
+    margin-bottom: 4px;
+  }
+  .login-mode input,
+  .login-mode select {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 14px;
+    color: var(--text);
+    font-size: 16px;
+    font-family: var(--font-body);
+    outline: none;
+    font-weight: 500;
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .login-mode select {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238B92A8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 40px;
+  }
+  .login-mode input:focus,
+  .login-mode select:focus {
+    border-color: var(--accent);
+  }
+  .login-mode .login-btn {
+    padding: 14px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    border: none;
+    background: var(--accent);
+    color: var(--bg);
+    cursor: pointer;
+    margin-top: 12px;
+    font-family: var(--font-body);
+  }
+  .login-mode .login-btn:active { transform: scale(0.98); }
+  .login-link {
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    font-size: 13px;
+    cursor: pointer;
+    padding: 14px 8px 0;
+    font-family: var(--font-body);
+    font-weight: 500;
+  }
+
+  /* User badge */
+  .user-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    margin-top: 4px;
+    justify-content: flex-end;
+  }
+  .user-badge .user-name {
+    font-weight: 700;
+    color: var(--text-muted);
+  }
+  .admin-mark {
+    background: var(--accent);
+    color: var(--bg);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-weight: 900;
+    font-size: 9px;
+    letter-spacing: 1px;
+  }
+  .logout-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: var(--font-body);
+    font-weight: 700;
+  }
+
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 </style>
 </head>
 <body>
+
+<!-- 로그인 화면 -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <div class="logo">PF</div>
+    <h2>패스파인더 FC</h2>
+    <div class="login-sub">PASSFINDER FC</div>
+
+    <!-- 팀원 로그인 -->
+    <div class="login-mode active" id="memberMode">
+      <label>이름</label>
+      <select id="loginMemberName"><option value="">선택...</option></select>
+      <label>전화 뒷자리 4자리</label>
+      <input type="tel" id="loginMemberPhone" placeholder="0000" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off">
+      <button class="login-btn" id="loginMemberBtn">팀원 로그인</button>
+      <button class="login-link" id="toggleAdminLogin">운영자세요? →</button>
+    </div>
+
+    <!-- 운영자 로그인 -->
+    <div class="login-mode" id="adminMode">
+      <label>운영자 PIN</label>
+      <input type="password" id="adminPin" placeholder="••••" inputmode="numeric" maxlength="8" autocomplete="off">
+      <button class="login-btn" id="loginAdminBtn">운영자 로그인</button>
+      <button class="login-link" id="toggleMemberLogin">← 팀원 로그인</button>
+    </div>
+
+    <!-- 첫 운영자 PIN 설정 (DB에 PIN 없을 때만 표시) -->
+    <div class="login-mode" id="setupMode">
+      <p class="hint">처음 시작합니다.<br>운영자 PIN을 설정해주세요. 이 PIN으로 모든 관리 기능을 사용해요.</p>
+      <label>새 PIN (4~8자리 숫자)</label>
+      <input type="password" id="setupPin" placeholder="••••" inputmode="numeric" maxlength="8" autocomplete="off">
+      <label>PIN 확인</label>
+      <input type="password" id="setupPinConfirm" placeholder="••••" inputmode="numeric" maxlength="8" autocomplete="off">
+      <button class="login-btn" id="setupAdminBtn">PIN 설정하고 시작</button>
+    </div>
+  </div>
+</div>
+
+<!-- 메인 앱 -->
+<div id="appWrapper" style="display:none;">
 <div class="container">
 
   <header class="header">
@@ -773,7 +972,7 @@
     </div>
     <div class="header-meta">
       <div class="date" id="todayDate">2026.05.05</div>
-      <div class="time">TODAY</div>
+      <div class="user-badge" id="userBadge"></div>
     </div>
   </header>
 
@@ -803,119 +1002,253 @@
     <span>팀원</span>
   </button>
 </nav>
+</div><!-- /#appWrapper -->
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-const STORAGE_KEY = 'passfinder_fc_v4';
+// =============================================================
+// 패스파인더 FC - Supabase 연동 + 권한 분리 버전
+// =============================================================
 
-const defaultData = {
-  members: [
-    { id: 'm1', name: '김민수', position: 'GK', joined: '2023-04' },
-    { id: 'm2', name: '이준호', position: 'DF', joined: '2023-04' },
-    { id: 'm3', name: '박서연', position: 'MF', joined: '2023-06' },
-    { id: 'm4', name: '최우진', position: 'FW', joined: '2023-08' },
-    { id: 'm5', name: '정하늘', position: 'MF', joined: '2024-02' },
-    { id: 'm6', name: '강도현', position: 'DF', joined: '2024-09' },
-  ],
-  matches: [
-    {
-      id: 'match1',
-      title: '주말 정기전 vs FC 노바',
-      date: '2026-05-10',
-      time: '19:00',
-      location: '강남 풋살장 A코트',
-      attendance: { m1: 'yes', m2: 'yes', m3: 'no', m4: 'maybe', m5: 'yes', m6: 'yes' }
-    }
-  ],
-  fees: {
-    monthlyAmount: 30000,
-    currentMonth: '2026-05',
-    payments: {
-      'm1_2026-05': { paid: true, method: 'toss', date: '2026-05-02', txId: 'TOSS-A8K2L' },
-      'm2_2026-05': { paid: true, method: 'kakao', date: '2026-05-03', txId: 'KAKAO-9MN3P' },
-      'm3_2026-05': { paid: false },
-      'm4_2026-05': { paid: true, method: 'toss', date: '2026-05-04', txId: 'TOSS-Q7R5T' },
-      'm5_2026-05': { paid: false },
-      'm6_2026-05': { paid: true, method: 'toss', date: '2026-05-04', txId: 'TOSS-X3Y7Z' },
-    }
-  }
+const SUPABASE_URL = 'https://dedjxhuhxqzcigisnmvf.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_Qcwd-7qY0NKMs4aob2vwGw_HB8vhv_d';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ========== STATE ==========
+let state = {
+  user: null,            // { role: 'admin' | 'member', id, name }
+  members: [],
+  matches: [],
+  attendance: [],
+  payments: [],
+  config: { monthly_fee: 30000, current_month: '' }
 };
 
-let state = loadData();
+function isAdmin() { return state.user?.role === 'admin'; }
+function getCurrentMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function haptic() { if (navigator.vibrate) navigator.vibrate(10); }
 
-function loadData() {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : JSON.parse(JSON.stringify(defaultData));
-  } catch {
-    return JSON.parse(JSON.stringify(defaultData));
+// ========== AUTH ==========
+async function getStoredAdminPin() {
+  const { data } = await sb.from('app_config').select('value').eq('key', 'admin_pin').maybeSingle();
+  return data?.value || null;
+}
+
+async function setupAdminPin(pin) {
+  const { error } = await sb.from('app_config').upsert({ key: 'admin_pin', value: pin, updated_at: new Date().toISOString() });
+  if (error) return { ok: false, msg: '실패: ' + error.message };
+  localStorage.setItem('pf_admin', '1');
+  state.user = { role: 'admin', id: null, name: '운영자' };
+  return { ok: true };
+}
+
+async function loginAdmin(pin) {
+  const stored = await getStoredAdminPin();
+  if (!stored) return { ok: false, msg: '아직 PIN이 설정되지 않았어요.' };
+  if (stored !== pin) return { ok: false, msg: 'PIN이 일치하지 않습니다.' };
+  localStorage.setItem('pf_admin', '1');
+  state.user = { role: 'admin', id: null, name: '운영자' };
+  return { ok: true };
+}
+
+async function loginMember(name, phone) {
+  const { data, error } = await sb.rpc('login_member', { p_name: name, p_phone: phone });
+  if (error) return { ok: false, msg: '오류: ' + error.message };
+  if (!data) return { ok: false, msg: '이름 또는 뒷자리가 일치하지 않아요.' };
+  state.user = { role: 'member', id: data, name };
+  localStorage.setItem('pf_member', JSON.stringify({ id: data, name }));
+  return { ok: true };
+}
+
+async function checkSession() {
+  // 1. 운영자 세션
+  if (localStorage.getItem('pf_admin') === '1') {
+    state.user = { role: 'admin', id: null, name: '운영자' };
+    return true;
   }
+  // 2. 팀원 세션
+  const stored = localStorage.getItem('pf_member');
+  if (stored) {
+    try {
+      const m = JSON.parse(stored);
+      const { data } = await sb.from('members_public').select('id, name').eq('id', m.id).maybeSingle();
+      if (data) {
+        state.user = { role: 'member', id: data.id, name: data.name };
+        return true;
+      }
+    } catch {}
+    localStorage.removeItem('pf_member');
+  }
+  return false;
 }
 
-function saveData() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {}
+function logout() {
+  localStorage.removeItem('pf_admin');
+  localStorage.removeItem('pf_member');
+  state.user = null;
+  showLogin();
 }
 
-// 햅틱 피드백 (모바일)
-function haptic() {
-  if (navigator.vibrate) navigator.vibrate(10);
+// ========== DATA ==========
+async function loadAll() {
+  const [members, matches, attendance, payments, config] = await Promise.all([
+    sb.from('members_public').select('*').order('joined'),
+    sb.from('matches').select('*').order('match_date'),
+    sb.from('attendance').select('*'),
+    sb.from('payments').select('*'),
+    sb.from('app_config').select('*')
+  ]);
+  state.members = members.data || [];
+  state.matches = matches.data || [];
+  state.attendance = attendance.data || [];
+  state.payments = payments.data || [];
+  if (config.data) {
+    config.data.forEach(c => {
+      if (c.key === 'monthly_fee') state.config.monthly_fee = parseInt(c.value);
+      else if (c.key === 'current_month') state.config.current_month = c.value;
+    });
+  }
+  if (!state.config.current_month) state.config.current_month = getCurrentMonth();
 }
 
+function nextMatch() {
+  const today = new Date().toISOString().slice(0, 10);
+  return state.matches.find(m => m.match_date >= today) || state.matches[state.matches.length - 1] || null;
+}
+function getVote(matchId, memberId) {
+  const a = state.attendance.find(x => x.match_id === matchId && x.member_id === memberId);
+  return a?.vote || 'none';
+}
+function getPayment(memberId, month) {
+  return state.payments.find(p => p.member_id === memberId && p.month === month);
+}
+function isPaid(memberId, month) {
+  const p = getPayment(memberId, month);
+  return !!(p && p.paid_at);
+}
+
+// ========== ACTIONS ==========
+async function actionVote(matchId, memberId, vote) {
+  if (state.user?.role === 'member' && state.user.id !== memberId) {
+    alert('본인의 참석만 변경할 수 있어요.');
+    return;
+  }
+  const { error } = await sb.from('attendance').upsert({
+    match_id: matchId, member_id: memberId, vote, updated_at: new Date().toISOString()
+  });
+  if (error) { alert('저장 실패: ' + error.message); return; }
+  await loadAll();
+  render();
+}
+
+async function actionAddMember(name, phone, position) {
+  if (!isAdmin()) { alert('운영자만 추가할 수 있어요.'); return false; }
+  const { error } = await sb.from('members').insert({ name, phone_last4: phone, position, joined: new Date().toISOString().slice(0,10) });
+  if (error) { alert('실패: ' + error.message); return false; }
+  await loadAll();
+  render();
+  return true;
+}
+
+async function actionRemoveMember(id) {
+  if (!isAdmin()) { alert('운영자만 삭제할 수 있어요.'); return; }
+  if (!confirm('정말 삭제할까요? 이 팀원의 참석/회비 기록도 함께 삭제됩니다.')) return;
+  const { error } = await sb.from('members').delete().eq('id', id);
+  if (error) { alert('실패: ' + error.message); return; }
+  await loadAll();
+  render();
+}
+
+async function actionPay(memberId, month, method) {
+  if (!isAdmin()) { alert('운영자만 가능해요.'); return; }
+  const txId = `${method.toUpperCase()}-${Math.random().toString(36).slice(2,7).toUpperCase()}`;
+  const { error } = await sb.from('payments').upsert({
+    member_id: memberId, month, method,
+    paid_at: new Date().toISOString(), tx_id: txId,
+    amount: state.config.monthly_fee
+  }, { onConflict: 'member_id,month' });
+  if (error) { alert('실패: ' + error.message); return; }
+  await loadAll();
+  render();
+}
+
+async function actionUndoPayment(memberId, month) {
+  if (!isAdmin()) { alert('운영자만 가능해요.'); return; }
+  const { error } = await sb.from('payments').delete().eq('member_id', memberId).eq('month', month);
+  if (error) { alert('실패: ' + error.message); return; }
+  await loadAll();
+  render();
+}
+
+async function actionAddMatch(title, date, time, location) {
+  if (!isAdmin()) { alert('운영자만 가능해요.'); return false; }
+  const { error } = await sb.from('matches').insert({ title, match_date: date, match_time: time || null, location: location || null });
+  if (error) { alert('실패: ' + error.message); return false; }
+  await loadAll();
+  render();
+  return true;
+}
+
+async function actionRemoveMatch(id) {
+  if (!isAdmin()) { alert('운영자만 가능해요.'); return; }
+  if (!confirm('이 경기를 삭제할까요?')) return;
+  const { error } = await sb.from('matches').delete().eq('id', id);
+  if (error) { alert('실패: ' + error.message); return; }
+  await loadAll();
+  render();
+}
+
+// ========== TABS / SWIPE ==========
 function setTab(tabId) {
-  document.querySelectorAll('.tab').forEach(t => {
-    t.classList.toggle('active', t.dataset.tab === tabId);
-  });
-  document.querySelectorAll('.panel').forEach(p => {
-    p.classList.toggle('active', p.id === `panel-${tabId}`);
-  });
-  // 탭 전환 시 스크롤 맨 위로
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${tabId}`));
   window.scrollTo({ top: 0, behavior: 'smooth' });
   render();
 }
 
 document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    haptic();
-    setTab(tab.dataset.tab);
-  });
+  tab.addEventListener('click', () => { haptic(); setTab(tab.dataset.tab); });
 });
 
-// 좌우 스와이프로 탭 전환
-let touchStartX = 0;
-let touchStartY = 0;
+let touchStartX = 0, touchStartY = 0;
 const tabOrder = ['overview', 'attendance', 'fees', 'members'];
-
 document.addEventListener('touchstart', (e) => {
   touchStartX = e.touches[0].clientX;
   touchStartY = e.touches[0].clientY;
 }, { passive: true });
-
 document.addEventListener('touchend', (e) => {
   if (!touchStartX) return;
   const dx = e.changedTouches[0].clientX - touchStartX;
   const dy = e.changedTouches[0].clientY - touchStartY;
-  // 가로 스와이프이고, 세로 움직임보다 클 때만
   if (Math.abs(dx) > 80 && Math.abs(dx) > Math.abs(dy) * 2) {
-    const currentTab = document.querySelector('.tab.active').dataset.tab;
-    const idx = tabOrder.indexOf(currentTab);
-    if (dx < 0 && idx < tabOrder.length - 1) {
-      haptic();
-      setTab(tabOrder[idx + 1]);
-    } else if (dx > 0 && idx > 0) {
-      haptic();
-      setTab(tabOrder[idx - 1]);
-    }
+    const cur = document.querySelector('.tab.active')?.dataset.tab;
+    const i = tabOrder.indexOf(cur);
+    if (dx < 0 && i < tabOrder.length - 1) { haptic(); setTab(tabOrder[i + 1]); }
+    else if (dx > 0 && i > 0) { haptic(); setTab(tabOrder[i - 1]); }
   }
   touchStartX = 0;
   touchStartY = 0;
 }, { passive: true });
 
-const today = new Date();
-document.getElementById('todayDate').textContent =
-  `${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')}`;
-
+// ========== RENDER ==========
 function render() {
+  const today = new Date();
+  const dEl = document.getElementById('todayDate');
+  if (dEl) dEl.textContent = `${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')}`;
+
+  // User badge
+  const ub = document.getElementById('userBadge');
+  if (ub && state.user) {
+    ub.innerHTML = `
+      <span class="user-name">${state.user.name}</span>
+      ${isAdmin() ? '<span class="admin-mark">ADMIN</span>' : ''}
+      <button class="logout-btn" onclick="logout()">로그아웃</button>
+    `;
+  }
+
   renderOverview();
   renderAttendance();
   renderFees();
@@ -923,21 +1256,33 @@ function render() {
 }
 
 function renderOverview() {
-  const match = state.matches[0];
-  const attending = match ? Object.values(match.attendance).filter(v => v === 'yes').length : 0;
-  const monthKey = state.fees.currentMonth;
-  const paid = state.members.filter(m => state.fees.payments[`${m.id}_${monthKey}`]?.paid).length;
-  const collected = paid * state.fees.monthlyAmount;
-  const dDay = match ? Math.max(0, Math.ceil((new Date(match.date) - new Date()) / 86400000)) : 0;
+  const match = nextMatch();
+  const matchAttending = match ? state.attendance.filter(a => a.match_id === match.id && a.vote === 'yes').length : 0;
+  const month = state.config.current_month;
+  const fee = state.config.monthly_fee;
+  const paid = state.members.filter(m => isPaid(m.id, month)).length;
+  const collected = paid * fee;
+  const dDay = match ? Math.max(0, Math.ceil((new Date(match.match_date) - new Date()) / 86400000)) : 0;
+
+  if (state.members.length === 0 && state.matches.length === 0) {
+    document.getElementById('panel-overview').innerHTML = `
+      <div class="empty-state">
+        <div style="font-size:48px;margin-bottom:12px;">⚽</div>
+        <div style="font-weight:700;font-size:16px;margin-bottom:8px;">아직 데이터가 없어요</div>
+        <div style="color:var(--text-muted);font-size:13px;">${isAdmin() ? '팀원 탭에서 팀원을 추가하고 참석 탭에서 경기를 등록하세요' : '운영자가 데이터를 추가하면 표시됩니다'}</div>
+      </div>
+    `;
+    return;
+  }
 
   document.getElementById('panel-overview').innerHTML = `
     ${match ? `
       <div class="match-card" style="margin-bottom: 16px;">
         <div class="match-dday">D-${dDay}</div>
-        <div class="match-title">${match.title}</div>
+        <div class="match-title">${escapeHtml(match.title)}</div>
         <div class="match-meta">
-          <span>📅 ${match.date} · ${match.time}</span>
-          <span>📍 ${match.location}</span>
+          <span>📅 ${match.match_date}${match.match_time ? ' · ' + match.match_time.slice(0,5) : ''}</span>
+          ${match.location ? `<span>📍 ${escapeHtml(match.location)}</span>` : ''}
         </div>
       </div>
     ` : ''}
@@ -945,8 +1290,8 @@ function renderOverview() {
     <div class="stats-grid">
       <div class="stat-card" data-go="attendance" style="--accent-color: var(--accent);">
         <div class="label">이번 주 참석</div>
-        <div class="value">${attending}<span style="font-size:20px;color:var(--text-dim);">/${state.members.length}</span></div>
-        <div class="sub">${match ? match.date : '경기 없음'}</div>
+        <div class="value">${matchAttending}<span style="font-size:20px;color:var(--text-dim);">/${state.members.length}</span></div>
+        <div class="sub">${match ? match.match_date : '경기 없음'}</div>
       </div>
       <div class="stat-card" data-go="fees" style="--accent-color: var(--info);">
         <div class="label">이번 달 회비</div>
@@ -962,70 +1307,86 @@ function renderOverview() {
   `;
 
   document.querySelectorAll('[data-go]').forEach(el => {
-    el.addEventListener('click', () => {
-      haptic();
-      setTab(el.dataset.go);
-    });
+    el.addEventListener('click', () => { haptic(); setTab(el.dataset.go); });
   });
 }
 
 function renderAttendance() {
-  const match = state.matches[0];
+  const match = nextMatch();
   if (!match) {
-    document.getElementById('panel-attendance').innerHTML = `<div class="empty-state">예정된 경기가 없습니다.</div>`;
+    document.getElementById('panel-attendance').innerHTML = `
+      <div class="empty-state">예정된 경기가 없습니다.</div>
+      ${isAdmin() ? `
+        <div class="section-header">
+          <div class="section-title">경기 추가</div>
+        </div>
+        <div class="add-form" style="flex-direction:column;align-items:stretch;">
+          <input type="text" id="newMatchTitle" placeholder="경기 제목 (예: 주말 정기전 vs FC 노바)" autocomplete="off">
+          <input type="date" id="newMatchDate">
+          <input type="time" id="newMatchTime">
+          <input type="text" id="newMatchLocation" placeholder="장소 (예: 강남 풋살장 A코트)" autocomplete="off">
+          <button class="btn btn-primary add-form-btn" id="confirmAddMatch">경기 추가</button>
+        </div>
+      ` : ''}
+    `;
+    if (isAdmin()) {
+      document.getElementById('confirmAddMatch')?.addEventListener('click', async () => {
+        const title = document.getElementById('newMatchTitle').value.trim();
+        const date = document.getElementById('newMatchDate').value;
+        const time = document.getElementById('newMatchTime').value;
+        const location = document.getElementById('newMatchLocation').value.trim();
+        if (!title || !date) { alert('제목과 날짜는 필수입니다.'); return; }
+        haptic();
+        await actionAddMatch(title, date, time, location);
+      });
+    }
     return;
   }
 
   const counts = { yes: 0, no: 0, maybe: 0, none: 0 };
   state.members.forEach(m => {
-    const v = match.attendance[m.id] || 'none';
+    const v = getVote(match.id, m.id);
     counts[v]++;
   });
 
   document.getElementById('panel-attendance').innerHTML = `
     <div class="match-card" style="margin-bottom: 16px;">
-      <div class="match-title">${match.title}</div>
+      <div class="match-title">${escapeHtml(match.title)}</div>
       <div class="match-meta">
-        <span>📅 ${match.date} ${match.time}</span>
-        <span>📍 ${match.location}</span>
+        <span>📅 ${match.match_date}${match.match_time ? ' · ' + match.match_time.slice(0,5) : ''}</span>
+        ${match.location ? `<span>📍 ${escapeHtml(match.location)}</span>` : ''}
       </div>
+      ${isAdmin() ? `<button class="btn" data-remove-match="${match.id}" style="margin-top:14px;">경기 삭제</button>` : ''}
     </div>
 
     <div class="attendance-summary">
-      <div class="summary-pill yes">
-        <div class="num">${counts.yes}</div>
-        <div class="lbl">참석</div>
-      </div>
-      <div class="summary-pill maybe">
-        <div class="num">${counts.maybe}</div>
-        <div class="lbl">미정</div>
-      </div>
-      <div class="summary-pill no">
-        <div class="num">${counts.no}</div>
-        <div class="lbl">불참</div>
-      </div>
+      <div class="summary-pill yes"><div class="num">${counts.yes}</div><div class="lbl">참석</div></div>
+      <div class="summary-pill maybe"><div class="num">${counts.maybe}</div><div class="lbl">미정</div></div>
+      <div class="summary-pill no"><div class="num">${counts.no}</div><div class="lbl">불참</div></div>
     </div>
 
     <div class="section-header">
       <div class="section-title">팀원 투표</div>
-      <div class="section-meta">탭하여 변경</div>
+      <div class="section-meta">${isAdmin() ? '운영자: 모두 변경 가능' : '본인만 변경 가능'}</div>
     </div>
 
     ${state.members.map(m => {
-      const vote = match.attendance[m.id] || 'none';
+      const vote = getVote(match.id, m.id);
+      const canEdit = isAdmin() || (state.user?.id === m.id);
+      const isMe = state.user?.id === m.id;
       return `
         <div class="attendance-row">
           <div class="attendance-row-top">
             <div class="position-badge pos-${m.position}">${m.position}</div>
             <div class="member-info">
-              <div class="name">${m.name}</div>
-              <div class="meta">${m.joined} 가입</div>
+              <div class="name">${escapeHtml(m.name)}${isMe ? ' <span style="color:var(--accent);font-size:11px;">(나)</span>' : ''}</div>
+              <div class="meta">${m.joined || ''} 가입</div>
             </div>
           </div>
           <div class="attendance-row-buttons">
-            <button class="btn ${vote === 'yes' ? 'active-yes' : ''}" data-vote="${m.id}:yes">참석</button>
-            <button class="btn ${vote === 'maybe' ? 'active-maybe' : ''}" data-vote="${m.id}:maybe">미정</button>
-            <button class="btn ${vote === 'no' ? 'active-no' : ''}" data-vote="${m.id}:no">불참</button>
+            <button class="btn ${vote === 'yes' ? 'active-yes' : ''}" data-vote="${m.id}:yes" ${canEdit ? '' : 'disabled'}>참석</button>
+            <button class="btn ${vote === 'maybe' ? 'active-maybe' : ''}" data-vote="${m.id}:maybe" ${canEdit ? '' : 'disabled'}>미정</button>
+            <button class="btn ${vote === 'no' ? 'active-no' : ''}" data-vote="${m.id}:no" ${canEdit ? '' : 'disabled'}>불참</button>
           </div>
         </div>
       `;
@@ -1033,86 +1394,84 @@ function renderAttendance() {
   `;
 
   document.querySelectorAll('[data-vote]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
+      if (btn.disabled) return;
       haptic();
       const [memberId, vote] = btn.dataset.vote.split(':');
-      state.matches[0].attendance[memberId] = vote;
-      saveData();
-      render();
+      await actionVote(match.id, memberId, vote);
     });
+  });
+  document.querySelector('[data-remove-match]')?.addEventListener('click', async (e) => {
+    haptic();
+    await actionRemoveMatch(e.currentTarget.dataset.removeMatch);
   });
 }
 
 function renderFees() {
-  const monthKey = state.fees.currentMonth;
-  const paidMembers = state.members.filter(m => state.fees.payments[`${m.id}_${monthKey}`]?.paid);
-  const unpaidMembers = state.members.filter(m => !state.fees.payments[`${m.id}_${monthKey}`]?.paid);
-  const collected = paidMembers.length * state.fees.monthlyAmount;
-  const expected = state.members.length * state.fees.monthlyAmount;
+  const month = state.config.current_month;
+  const fee = state.config.monthly_fee;
+  const paidMembers = state.members.filter(m => isPaid(m.id, month));
+  const unpaidMembers = state.members.filter(m => !isPaid(m.id, month));
+  const collected = paidMembers.length * fee;
+  const expected = state.members.length * fee;
   const percent = expected > 0 ? Math.round((collected / expected) * 100) : 0;
 
   document.getElementById('panel-fees').innerHTML = `
-    <div class="info-banner">
-      <strong>💡 데모 모드</strong>
-      토스 / 카카오 버튼을 누르면 결제 시뮬레이션이 실행됩니다.
-    </div>
+    ${!isAdmin() ? `<div class="info-banner"><strong>👀 조회 전용</strong>회비 입력은 운영자만 가능해요.</div>` : `<div class="info-banner"><strong>💡 운영자 모드</strong>토스/카카오 버튼은 결제 시뮬레이션입니다.</div>`}
 
     <div class="fees-header">
       <div class="fees-header-top">
-        <div class="fees-month">${monthKey} · 1인 ${(state.fees.monthlyAmount/10000).toFixed(0)}만원</div>
+        <div class="fees-month">${month} · 1인 ${(fee/10000).toFixed(0)}만원</div>
         <div class="fees-percent">${percent}%</div>
       </div>
       <div class="fees-amount">
         <div class="collected">${collected.toLocaleString()}원</div>
         <div class="total">/ ${expected.toLocaleString()}원</div>
       </div>
-      <div class="progress-bar">
-        <div class="progress-fill" style="width: ${percent}%"></div>
-      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width: ${percent}%"></div></div>
     </div>
 
     ${unpaidMembers.length > 0 ? `
-      <div class="section-header">
-        <div class="section-title">미납 (${unpaidMembers.length}명)</div>
-      </div>
+      <div class="section-header"><div class="section-title">미납 (${unpaidMembers.length}명)</div></div>
       ${unpaidMembers.map(m => `
         <div class="fees-row">
           <div class="fees-row-top">
             <div class="row-left">
               <div class="unpaid-dot"></div>
               <div class="member-info">
-                <div class="name">${m.name}</div>
+                <div class="name">${escapeHtml(m.name)}</div>
                 <div class="meta">${m.position} · 미납</div>
               </div>
             </div>
           </div>
-          <div class="fees-row-bottom">
-            <button class="btn btn-toss" data-pay="${m.id}:toss">토스로 받기</button>
-            <button class="btn btn-kakao" data-pay="${m.id}:kakao">카카오로 받기</button>
-          </div>
+          ${isAdmin() ? `
+            <div class="fees-row-bottom">
+              <button class="btn btn-toss" data-pay="${m.id}:toss">토스로 받기</button>
+              <button class="btn btn-kakao" data-pay="${m.id}:kakao">카카오로 받기</button>
+            </div>
+          ` : ''}
         </div>
       `).join('')}
       <div class="divider"></div>
     ` : ''}
 
     ${paidMembers.length > 0 ? `
-      <div class="section-header">
-        <div class="section-title">납부 완료 (${paidMembers.length}명)</div>
-      </div>
+      <div class="section-header"><div class="section-title">납부 완료 (${paidMembers.length}명)</div></div>
       ${paidMembers.map(m => {
-        const p = state.fees.payments[`${m.id}_${monthKey}`];
+        const p = getPayment(m.id, month);
+        const methodLabel = p?.method === 'toss' ? 'TOSS' : (p?.method === 'kakao' ? 'KAKAO' : (p?.method?.toUpperCase() || ''));
         return `
           <div class="row">
             <div class="row-left">
               <div class="check-icon">✓</div>
               <div class="member-info">
-                <div class="name">${m.name}</div>
-                <div class="tx-id">${p.txId}</div>
+                <div class="name">${escapeHtml(m.name)}</div>
+                <div class="tx-id">${p?.tx_id || ''}</div>
               </div>
             </div>
             <div class="btn-group">
-              <span class="pay-method ${p.method}">${p.method === 'toss' ? 'TOSS' : 'KAKAO'}</span>
-              <button class="btn" data-undo="${m.id}">취소</button>
+              <span class="pay-method ${p?.method || ''}">${methodLabel}</span>
+              ${isAdmin() ? `<button class="btn" data-undo="${m.id}">취소</button>` : ''}
             </div>
           </div>
         `;
@@ -1121,28 +1480,16 @@ function renderFees() {
   `;
 
   document.querySelectorAll('[data-pay]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       haptic();
       const [memberId, method] = btn.dataset.pay.split(':');
-      const prefix = method === 'toss' ? 'TOSS' : 'KAKAO';
-      const txId = `${prefix}-${Math.random().toString(36).slice(2,7).toUpperCase()}`;
-      state.fees.payments[`${memberId}_${monthKey}`] = {
-        paid: true, method,
-        date: new Date().toISOString().slice(0,10),
-        txId
-      };
-      saveData();
-      render();
+      await actionPay(memberId, month, method);
     });
   });
-
   document.querySelectorAll('[data-undo]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       haptic();
-      const memberId = btn.dataset.undo;
-      state.fees.payments[`${memberId}_${monthKey}`] = { paid: false };
-      saveData();
-      render();
+      await actionUndoPayment(btn.dataset.undo, month);
     });
   });
 }
@@ -1151,48 +1498,50 @@ function renderMembers() {
   document.getElementById('panel-members').innerHTML = `
     <div class="section-header">
       <div class="section-title">팀원 ${state.members.length}명</div>
-      <button class="btn btn-primary" id="toggleAdd">+ 추가</button>
+      ${isAdmin() ? `<button class="btn btn-primary" id="toggleAdd">+ 추가</button>` : ''}
     </div>
 
     <div id="addFormContainer"></div>
 
-    ${state.members.map(m => `
+    ${state.members.length === 0 ? `
+      <div class="empty-state">${isAdmin() ? '+ 추가 버튼을 눌러 팀원을 등록하세요' : '아직 팀원이 등록되지 않았어요'}</div>
+    ` : state.members.map(m => `
       <div class="row">
         <div class="row-left">
           <div class="position-badge pos-${m.position}">${m.position}</div>
           <div class="member-info">
-            <div class="name">${m.name}</div>
-            <div class="meta">${m.joined} 가입</div>
+            <div class="name">${escapeHtml(m.name)}${state.user?.id === m.id ? ' <span style="color:var(--accent);font-size:11px;">(나)</span>' : ''}</div>
+            <div class="meta">${m.joined || ''} 가입</div>
           </div>
         </div>
-        <button class="btn" data-remove="${m.id}">삭제</button>
+        ${isAdmin() ? `<button class="btn" data-remove="${m.id}">삭제</button>` : ''}
       </div>
     `).join('')}
   `;
 
+  if (!isAdmin()) return;
+
   let showingAdd = false;
-  document.getElementById('toggleAdd').addEventListener('click', (e) => {
+  document.getElementById('toggleAdd')?.addEventListener('click', (e) => {
     haptic();
     showingAdd = !showingAdd;
     const container = document.getElementById('addFormContainer');
     if (showingAdd) {
       container.innerHTML = `
-        <div class="add-form">
+        <div class="add-form" style="flex-direction:column;align-items:stretch;">
           <input type="text" id="newName" placeholder="이름" autocomplete="off">
+          <input type="tel" id="newPhone" placeholder="전화 뒷자리 4자리 (예: 1234)" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off">
           <select id="newPosition">
-            <option value="GK">GK</option>
-            <option value="DF">DF</option>
-            <option value="MF" selected>MF</option>
-            <option value="FW">FW</option>
+            <option value="GK">GK (골키퍼)</option>
+            <option value="DF">DF (수비)</option>
+            <option value="MF" selected>MF (미드필더)</option>
+            <option value="FW">FW (공격)</option>
           </select>
           <button class="btn btn-primary add-form-btn" id="confirmAdd">추가하기</button>
         </div>
       `;
       document.getElementById('newName').focus();
-      document.getElementById('newName').addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter') addMember();
-      });
-      document.getElementById('confirmAdd').addEventListener('click', addMember);
+      document.getElementById('confirmAdd').addEventListener('click', addMemberSubmit);
       e.target.textContent = '취소';
     } else {
       container.innerHTML = '';
@@ -1200,33 +1549,142 @@ function renderMembers() {
     }
   });
 
-  function addMember() {
+  async function addMemberSubmit() {
     const name = document.getElementById('newName').value.trim();
+    const phone = document.getElementById('newPhone').value.trim();
     const position = document.getElementById('newPosition').value;
-    if (!name) return;
+    if (!name) { alert('이름을 입력하세요.'); return; }
+    if (!/^[0-9]{4}$/.test(phone)) { alert('전화 뒷자리 4자리를 정확히 입력하세요.'); return; }
     haptic();
-    state.members.push({
-      id: `m${Date.now()}`,
-      name, position,
-      joined: new Date().toISOString().slice(0,7)
-    });
-    saveData();
-    render();
+    await actionAddMember(name, phone, position);
   }
 
   document.querySelectorAll('[data-remove]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (!confirm('정말 삭제하시겠습니까?')) return;
+    btn.addEventListener('click', async () => {
       haptic();
-      const id = btn.dataset.remove;
-      state.members = state.members.filter(m => m.id !== id);
-      saveData();
-      render();
+      await actionRemoveMember(btn.dataset.remove);
     });
   });
 }
 
-render();
+// HTML escape (XSS 방지)
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ========== LOGIN UI ==========
+async function showLogin() {
+  document.getElementById('appWrapper').style.display = 'none';
+  document.getElementById('loginScreen').classList.add('show');
+
+  // 운영자 PIN이 설정돼있는지 확인
+  const pin = await getStoredAdminPin();
+  if (!pin) {
+    // 첫 운영자 등록 모드 표시
+    document.querySelectorAll('.login-mode').forEach(el => el.classList.remove('active'));
+    document.getElementById('setupMode').classList.add('active');
+  } else {
+    // 일반 로그인 모드
+    document.querySelectorAll('.login-mode').forEach(el => el.classList.remove('active'));
+    document.getElementById('memberMode').classList.add('active');
+    await populateMemberDropdown();
+  }
+}
+
+function hideLogin() {
+  document.getElementById('loginScreen').classList.remove('show');
+  document.getElementById('appWrapper').style.display = '';
+}
+
+async function populateMemberDropdown() {
+  const select = document.getElementById('loginMemberName');
+  if (!select) return;
+  const { data } = await sb.from('members_public').select('id, name').order('name');
+  const list = data || [];
+  if (list.length === 0) {
+    select.innerHTML = '<option value="">등록된 팀원이 없어요</option>';
+  } else {
+    select.innerHTML = '<option value="">선택...</option>' +
+      list.map(m => `<option value="${escapeHtml(m.name)}">${escapeHtml(m.name)}</option>`).join('');
+  }
+}
+
+// 로그인 이벤트 핸들러들
+document.getElementById('loginMemberBtn').addEventListener('click', async () => {
+  const name = document.getElementById('loginMemberName').value;
+  const phone = document.getElementById('loginMemberPhone').value.trim();
+  if (!name) { alert('이름을 선택하세요.'); return; }
+  if (!/^[0-9]{4}$/.test(phone)) { alert('전화 뒷자리 4자리를 입력하세요.'); return; }
+  const result = await loginMember(name, phone);
+  if (!result.ok) { alert(result.msg); return; }
+  hideLogin();
+  await loadAll();
+  render();
+});
+
+document.getElementById('toggleAdminLogin').addEventListener('click', () => {
+  document.querySelectorAll('.login-mode').forEach(el => el.classList.remove('active'));
+  document.getElementById('adminMode').classList.add('active');
+  setTimeout(() => document.getElementById('adminPin')?.focus(), 50);
+});
+document.getElementById('toggleMemberLogin').addEventListener('click', () => {
+  document.querySelectorAll('.login-mode').forEach(el => el.classList.remove('active'));
+  document.getElementById('memberMode').classList.add('active');
+});
+
+document.getElementById('loginAdminBtn').addEventListener('click', async () => {
+  const pin = document.getElementById('adminPin').value;
+  if (!pin) { alert('PIN을 입력하세요.'); return; }
+  const result = await loginAdmin(pin);
+  if (!result.ok) { alert(result.msg); return; }
+  hideLogin();
+  await loadAll();
+  render();
+});
+
+document.getElementById('setupAdminBtn').addEventListener('click', async () => {
+  const pin = document.getElementById('setupPin').value;
+  const confirm = document.getElementById('setupPinConfirm').value;
+  if (!/^[0-9]{4,8}$/.test(pin)) { alert('PIN은 4~8자리 숫자여야 해요.'); return; }
+  if (pin !== confirm) { alert('PIN 확인이 일치하지 않아요.'); return; }
+  const result = await setupAdminPin(pin);
+  if (!result.ok) { alert(result.msg); return; }
+  hideLogin();
+  await loadAll();
+  render();
+});
+
+// 엔터 키로 폼 제출
+['loginMemberPhone', 'adminPin', 'setupPinConfirm'].forEach(id => {
+  document.getElementById(id)?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const btnId = id === 'loginMemberPhone' ? 'loginMemberBtn'
+                  : id === 'adminPin' ? 'loginAdminBtn'
+                  : 'setupAdminBtn';
+      document.getElementById(btnId).click();
+    }
+  });
+});
+
+// ========== INIT ==========
+async function init() {
+  try {
+    const ok = await checkSession();
+    if (ok) {
+      await loadAll();
+      hideLogin();
+      render();
+    } else {
+      await showLogin();
+    }
+  } catch (err) {
+    console.error('초기화 실패:', err);
+    alert('서버 연결 실패. 새로고침해주세요.\n' + (err.message || err));
+  }
+}
+
+init();
 </script>
 </body>
 </html>
