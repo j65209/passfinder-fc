@@ -917,6 +917,69 @@
     opacity: 0.4;
     cursor: not-allowed;
   }
+
+  /* === ADMIN QUICK BAR (회비 탭 운영자 도구) === */
+  .admin-quick-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .qb-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 6px;
+    color: var(--text);
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    cursor: pointer;
+    line-height: 1.4;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    font-family: var(--font-body);
+  }
+  .qb-btn:active {
+    background: var(--bg-elevated);
+    transform: scale(0.97);
+  }
+  .qb-btn .qb-emoji {
+    font-size: 22px;
+    display: block;
+    margin-bottom: 4px;
+  }
+  .qb-btn.qb-warning { border-color: rgba(255,181,71,0.4); color: var(--warning); }
+  .qb-btn.qb-accent { border-color: rgba(0,255,136,0.4); color: var(--accent); }
+  .qb-settings-btn {
+    background: transparent;
+    border: 1px dashed var(--border);
+    color: var(--text-muted);
+    border-radius: 10px;
+    padding: 10px;
+    width: 100%;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 16px;
+    font-family: var(--font-body);
+  }
+  .qb-settings-btn:active {
+    background: var(--bg-elevated);
+  }
+  .bank-info-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .bank-info-card strong { color: var(--text); font-weight: 700; }
 </style>
 </head>
 <body>
@@ -1021,7 +1084,13 @@ let state = {
   matches: [],
   attendance: [],
   payments: [],
-  config: { monthly_fee: 30000, current_month: '' }
+  config: {
+    monthly_fee: 30000,
+    current_month: '',
+    bank_name: '',
+    bank_account_number: '',
+    bank_account_holder: ''
+  }
 };
 
 function isAdmin() { return state.user?.role === 'admin'; }
@@ -1109,6 +1178,9 @@ async function loadAll() {
     config.data.forEach(c => {
       if (c.key === 'monthly_fee') state.config.monthly_fee = parseInt(c.value);
       else if (c.key === 'current_month') state.config.current_month = c.value;
+      else if (c.key === 'bank_name') state.config.bank_name = c.value;
+      else if (c.key === 'bank_account_number') state.config.bank_account_number = c.value;
+      else if (c.key === 'bank_account_holder') state.config.bank_account_holder = c.value;
     });
   }
   if (!state.config.current_month) state.config.current_month = getCurrentMonth();
@@ -1198,6 +1270,140 @@ async function actionRemoveMatch(id) {
   const { error } = await sb.from('matches').delete().eq('id', id);
   if (error) { alert('실패: ' + error.message); return; }
   await loadAll();
+  render();
+}
+
+// ========== ADMIN QUICK ACTIONS ==========
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+function buildUnpaidShareMessage() {
+  const month = state.config.current_month;
+  const fee = state.config.monthly_fee;
+  const unpaid = state.members.filter(m => !isPaid(m.id, month));
+  const lines = [
+    `🚨 패스파인더 FC 회비 안내 (${month})`,
+    '',
+    `미납 ${unpaid.length}명 · 1인 ${(fee/10000).toFixed(0)}만원`,
+    ...unpaid.map(m => `· ${m.name}`),
+    ''
+  ];
+  if (state.config.bank_account_number) {
+    lines.push(`💳 ${state.config.bank_name || '카카오뱅크'} ${state.config.bank_account_number}`);
+    if (state.config.bank_account_holder) lines.push(`예금주: ${state.config.bank_account_holder}`);
+  } else {
+    lines.push('💳 모임통장으로 입금 부탁드려요!');
+  }
+  return lines.join('\n');
+}
+
+async function actionShareUnpaid() {
+  const month = state.config.current_month;
+  const unpaid = state.members.filter(m => !isPaid(m.id, month));
+  if (unpaid.length === 0) { alert('🎉 미납자가 없어요!'); return; }
+
+  const text = buildUnpaidShareMessage();
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: '패스파인더 FC 회비 안내', text });
+    } catch (e) {
+      if (e.name !== 'AbortError') {
+        const ok = await copyToClipboard(text);
+        alert(ok ? '공유 취소됨. 메시지를 클립보드에 복사했어요.' : '공유 실패. 다시 시도해주세요.');
+      }
+    }
+  } else {
+    const ok = await copyToClipboard(text);
+    alert(ok ? '메시지를 클립보드에 복사했어요.\n카톡에서 붙여넣기해주세요.' : '복사 실패. 다시 시도해주세요.');
+  }
+}
+
+async function actionGoToBank() {
+  const accountNumber = state.config.bank_account_number;
+  if (accountNumber) {
+    const ok = await copyToClipboard(accountNumber);
+    if (ok) {
+      // iOS: kakaobank://, Android: market intent fallback
+      setTimeout(() => { window.location.href = 'kakaobank://'; }, 100);
+      alert(`계좌번호 복사됨: ${accountNumber}\n카카오뱅크 앱이 열려요.`);
+    } else {
+      alert(`계좌번호: ${accountNumber}\n복사 실패 — 직접 적어주세요.`);
+    }
+  } else {
+    if (confirm('모임통장 계좌번호가 아직 없어요.\n지금 설정할까요?')) {
+      openBankSettings();
+    } else {
+      // 그냥 카뱅 앱만 열기
+      window.location.href = 'kakaobank://';
+    }
+  }
+}
+
+async function actionPayAll() {
+  const month = state.config.current_month;
+  const unpaid = state.members.filter(m => !isPaid(m.id, month));
+  if (unpaid.length === 0) { alert('🎉 이미 모두 납부 완료!'); return; }
+
+  const list = unpaid.map(m => '· ' + m.name).join('\n');
+  if (!confirm(`미납자 ${unpaid.length}명 전원을 납부 완료로 처리할까요?\n\n${list}`)) return;
+
+  const fee = state.config.monthly_fee;
+  const records = unpaid.map(m => ({
+    member_id: m.id,
+    month,
+    method: 'transfer',
+    paid_at: new Date().toISOString(),
+    tx_id: `BULK-${Date.now().toString(36).toUpperCase()}`,
+    amount: fee
+  }));
+
+  const { error } = await sb.from('payments').upsert(records, { onConflict: 'member_id,month' });
+  if (error) { alert('실패: ' + error.message); return; }
+
+  await loadAll();
+  render();
+  alert(`✅ ${unpaid.length}명 납부 처리 완료!`);
+}
+
+async function openBankSettings() {
+  const newBank = prompt('은행명 (예: 카카오뱅크)', state.config.bank_name || '카카오뱅크');
+  if (newBank === null) return;
+  const newNumber = prompt('계좌번호 (하이픈 포함, 예: 3333-XX-XXXXXXX)', state.config.bank_account_number || '');
+  if (newNumber === null) return;
+  const newHolder = prompt('예금주 (예: 패스파인더 FC)', state.config.bank_account_holder || '');
+  if (newHolder === null) return;
+
+  const updates = [
+    { key: 'bank_name', value: newBank.trim() },
+    { key: 'bank_account_number', value: newNumber.trim() },
+    { key: 'bank_account_holder', value: newHolder.trim() }
+  ].map(u => ({ ...u, updated_at: new Date().toISOString() }));
+
+  const { error } = await sb.from('app_config').upsert(updates);
+  if (error) { alert('저장 실패: ' + error.message); return; }
+
+  state.config.bank_name = newBank.trim();
+  state.config.bank_account_number = newNumber.trim();
+  state.config.bank_account_holder = newHolder.trim();
+  alert('✅ 모임통장 정보 저장됨');
   render();
 }
 
@@ -1415,8 +1621,37 @@ function renderFees() {
   const expected = state.members.length * fee;
   const percent = expected > 0 ? Math.round((collected / expected) * 100) : 0;
 
+  const unpaidCount = unpaidMembers.length;
+  const bankConfigured = !!state.config.bank_account_number;
+
   document.getElementById('panel-fees').innerHTML = `
-    ${!isAdmin() ? `<div class="info-banner"><strong>👀 조회 전용</strong>회비 입력은 운영자만 가능해요.</div>` : `<div class="info-banner"><strong>💡 운영자 모드</strong>토스/카카오 버튼은 결제 시뮬레이션입니다.</div>`}
+    ${!isAdmin() ? `<div class="info-banner"><strong>👀 조회 전용</strong>회비 입력은 운영자만 가능해요.</div>` : ''}
+
+    ${isAdmin() ? `
+      <div class="admin-quick-bar">
+        <button class="qb-btn qb-warning" id="qbShare" ${unpaidCount === 0 ? 'disabled' : ''}>
+          <span class="qb-emoji">📋</span>
+          미납자<br>카톡 공유
+        </button>
+        <button class="qb-btn" id="qbBank">
+          <span class="qb-emoji">🏦</span>
+          모임통장<br>열기
+        </button>
+        <button class="qb-btn qb-accent" id="qbAllPay" ${unpaidCount === 0 ? 'disabled' : ''}>
+          <span class="qb-emoji">✓</span>
+          전체<br>납부 처리
+        </button>
+      </div>
+
+      ${bankConfigured ? `
+        <div class="bank-info-card">
+          <div>💳 <strong>${escapeHtml(state.config.bank_name || '계좌')}</strong> ${escapeHtml(state.config.bank_account_number)}</div>
+          <button class="qb-settings-btn" id="qbSettings" style="width:auto;padding:6px 10px;margin:0;">⚙️</button>
+        </div>
+      ` : `
+        <button class="qb-settings-btn" id="qbSettings">⚙️ 모임통장 계좌 설정 (입금 안내용)</button>
+      `}
+    ` : ''}
 
     <div class="fees-header">
       <div class="fees-header-top">
@@ -1491,6 +1726,12 @@ function renderFees() {
       await actionUndoPayment(btn.dataset.undo, month);
     });
   });
+
+  // 운영자 빠른가기 버튼
+  document.getElementById('qbShare')?.addEventListener('click', () => { haptic(); actionShareUnpaid(); });
+  document.getElementById('qbBank')?.addEventListener('click', () => { haptic(); actionGoToBank(); });
+  document.getElementById('qbAllPay')?.addEventListener('click', () => { haptic(); actionPayAll(); });
+  document.getElementById('qbSettings')?.addEventListener('click', () => { haptic(); openBankSettings(); });
 }
 
 function renderMembers() {
