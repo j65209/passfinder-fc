@@ -1144,9 +1144,9 @@ async function actionVote(matchId, memberId, vote) {
   render();
 }
 
-async function actionAddMember(name, phone, position) {
+async function actionAddMember(name, phone) {
   if (!isAdmin()) { alert('운영자만 추가할 수 있어요.'); return false; }
-  const { error } = await sb.from('members').insert({ name, phone_last4: phone, position, joined: new Date().toISOString().slice(0,10) });
+  const { error } = await sb.from('members').insert({ name, phone_last4: phone, joined: new Date().toISOString().slice(0,10) });
   if (error) { alert('실패: ' + error.message); return false; }
   await loadAll();
   render();
@@ -1377,7 +1377,6 @@ function renderAttendance() {
       return `
         <div class="attendance-row">
           <div class="attendance-row-top">
-            <div class="position-badge pos-${m.position}">${m.position}</div>
             <div class="member-info">
               <div class="name">${escapeHtml(m.name)}${isMe ? ' <span style="color:var(--accent);font-size:11px;">(나)</span>' : ''}</div>
               <div class="meta">${m.joined || ''} 가입</div>
@@ -1440,7 +1439,7 @@ function renderFees() {
               <div class="unpaid-dot"></div>
               <div class="member-info">
                 <div class="name">${escapeHtml(m.name)}</div>
-                <div class="meta">${m.position} · 미납</div>
+                <div class="meta">미납</div>
               </div>
             </div>
           </div>
@@ -1508,7 +1507,6 @@ function renderMembers() {
     ` : state.members.map(m => `
       <div class="row">
         <div class="row-left">
-          <div class="position-badge pos-${m.position}">${m.position}</div>
           <div class="member-info">
             <div class="name">${escapeHtml(m.name)}${state.user?.id === m.id ? ' <span style="color:var(--accent);font-size:11px;">(나)</span>' : ''}</div>
             <div class="meta">${m.joined || ''} 가입</div>
@@ -1531,12 +1529,6 @@ function renderMembers() {
         <div class="add-form" style="flex-direction:column;align-items:stretch;">
           <input type="text" id="newName" placeholder="이름" autocomplete="off">
           <input type="tel" id="newPhone" placeholder="전화 뒷자리 4자리 (예: 1234)" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off">
-          <select id="newPosition">
-            <option value="GK">GK (골키퍼)</option>
-            <option value="DF">DF (수비)</option>
-            <option value="MF" selected>MF (미드필더)</option>
-            <option value="FW">FW (공격)</option>
-          </select>
           <button class="btn btn-primary add-form-btn" id="confirmAdd">추가하기</button>
         </div>
       `;
@@ -1552,11 +1544,10 @@ function renderMembers() {
   async function addMemberSubmit() {
     const name = document.getElementById('newName').value.trim();
     const phone = document.getElementById('newPhone').value.trim();
-    const position = document.getElementById('newPosition').value;
     if (!name) { alert('이름을 입력하세요.'); return; }
     if (!/^[0-9]{4}$/.test(phone)) { alert('전화 뒷자리 4자리를 정확히 입력하세요.'); return; }
     haptic();
-    await actionAddMember(name, phone, position);
+    await actionAddMember(name, phone);
   }
 
   document.querySelectorAll('[data-remove]').forEach(btn => {
