@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git --version)",
+      "Bash(gh --version)",
+      "Bash(gh auth *)",
+      "Read(//opt/homebrew/bin/**)",
+      "Read(//usr/local/bin/**)",
+      "Bash(git config *)",
+      "Bash(/usr/local/bin/brew --version)",
+      "Read(//Users/macbook/**)",
+      "Bash(/usr/local/bin/brew install *)"
+    ]
+  }
+}
