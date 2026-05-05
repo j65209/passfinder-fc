@@ -2,8 +2,9 @@
 
 풋살팀 운영용 모바일 친화적 웹앱. 참석 투표, 회비 관리, 팀원 명단을 Supabase 백엔드로 실시간 공유.
 
-🌐 **라이브**: https://passfinder-fc.netlify.app
-📦 **레포**: https://github.com/j65209/passfinder-fc (private)
+🌐 **라이브**: https://j65209.github.io/passfinder-fc
+📦 **레포**: https://github.com/j65209/passfinder-fc (public)
+🚀 **호스팅**: GitHub Pages (auto-deploy from main branch)
 
 ---
 
@@ -38,7 +39,7 @@
 ### 기술 스택
 - Frontend: 단일 HTML 파일 (CSS + Vanilla JS)
 - Backend: Supabase (PostgreSQL + Auth + RLS)
-- 호스팅: Netlify (auto deploy from main branch)
+- 호스팅: GitHub Pages (auto deploy from main branch)
 - 외부 의존성: `@supabase/supabase-js@2` (CDN), Google Fonts
 
 ### 데이터 구조 (Supabase)
@@ -61,7 +62,7 @@
 ### 새 기능 추가
 1. `index.html` 수정
 2. `git add . && git commit -m "메시지" && git push`
-3. Netlify가 자동 배포 (~30초)
+3. GitHub Pages가 자동 배포 (~1~2분)
 
 ### DB 스키마 변경
 1. Supabase 대시보드 → SQL Editor → 변경 SQL 실행
@@ -92,8 +93,8 @@
 
 - **Supabase Project URL**: `https://dedjxhuhxqzcigisnmvf.supabase.co`
 - **Anon Key (sb_publishable)**: 코드에 하드코딩됨 (공개해도 안전)
-- **GitHub**: `j65209/passfinder-fc` (private)
-- **Netlify Site**: `passfinder-fc` → `passfinder-fc.netlify.app`
+- **GitHub**: `j65209/passfinder-fc` (public)
+- **GitHub Pages**: `j65209.github.io/passfinder-fc` (Settings → Pages)
 
 ⚠️ Supabase `service_role` 키는 절대 코드/저장소에 넣지 말 것 (전체 권한 마스터 키)
 
@@ -132,6 +133,6 @@ python3 -m http.server 8000
 | 항목 | 비용 |
 |---|---|
 | 도메인 (.com, 추후) | 연 14,000~18,000원 |
-| Netlify 호스팅 | 무료 |
+| GitHub Pages | 무료 (public repo) |
 | Supabase | 무료 (DB 500MB, MAU 5만) |
 | **현재** | **0원** |
