@@ -668,8 +668,8 @@
     border-radius: 12px;
     padding: 12px;
     margin-bottom: 12px;
-    display: grid;
-    grid-template-columns: 1fr 80px;
+    display: flex;
+    flex-direction: column;
     gap: 8px;
   }
 
@@ -684,6 +684,16 @@
     font-size: 16px;
     font-weight: 500;
     min-height: 44px;
+    width: 100%;
+    box-sizing: border-box;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .add-form select {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238B92A8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 40px;
   }
 
   .add-form input:focus,
@@ -693,9 +703,9 @@
   }
 
   .add-form .add-form-btn {
-    grid-column: 1 / -1;
     width: 100%;
     min-height: 44px;
+    margin-top: 4px;
   }
 
   /* DIVIDER */
