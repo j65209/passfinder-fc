@@ -946,6 +946,46 @@
     cursor: not-allowed;
   }
 
+  .form-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-align: left;
+    margin-top: 8px;
+    display: block;
+  }
+  .form-hint {
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.5;
+    margin-top: 4px;
+  }
+  .upcoming-match-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 6px;
+    font-size: 13px;
+  }
+  .upcoming-match-row .um-info { color: var(--text); }
+  .upcoming-match-row .um-meta { color: var(--text-dim); font-size: 11px; margin-top: 2px; }
+  .upcoming-match-row .um-del {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: var(--font-body);
+  }
+
   /* === ADMIN QUICK BAR (회비 탭 운영자 도구) === */
   .admin-quick-bar {
     display: grid;
@@ -1285,13 +1325,66 @@ async function actionUndoPayment(memberId, month) {
   render();
 }
 
-async function actionAddMatch(title, date, time, location) {
+async function actionAddMatch(title, startDate, time, location, recurrence = 'none', count = 1) {
   if (!isAdmin()) { alert('운영자만 가능해요.'); return false; }
-  const { error } = await sb.from('matches').insert({ title, match_date: date, match_time: time || null, location: location || null });
+  const interval = recurrence === 'weekly' ? 7 : (recurrence === 'biweekly' ? 14 : 0);
+  const total = recurrence === 'none' ? 1 : Math.max(1, Math.min(count, 52));
+  const dates = [];
+  let d = new Date(startDate + 'T00:00:00');
+  for (let i = 0; i < total; i++) {
+    dates.push(d.toISOString().slice(0, 10));
+    if (interval > 0) d = new Date(d.getTime() + interval * 86400000);
+  }
+  const records = dates.map(date => ({
+    title, match_date: date, match_time: time || null, location: location || null
+  }));
+  const { error } = await sb.from('matches').insert(records);
   if (error) { alert('실패: ' + error.message); return false; }
   await loadAll();
   render();
+  if (records.length > 1) alert(`✅ 경기 ${records.length}개 추가됨`);
   return true;
+}
+
+function matchAddFormHTML() {
+  return `
+    <div class="add-form" style="flex-direction:column;align-items:stretch;">
+      <input type="text" id="newMatchTitle" placeholder="경기 제목 (예: 정기 내전)" autocomplete="off">
+      <input type="date" id="newMatchDate">
+      <input type="time" id="newMatchTime">
+      <input type="text" id="newMatchLocation" placeholder="장소 (예: 강남 풋살장 A코트)" autocomplete="off">
+      <label class="form-label">반복</label>
+      <select id="newMatchRecurrence">
+        <option value="none">반복 없음 (1회만)</option>
+        <option value="weekly">매주 반복</option>
+        <option value="biweekly">2주마다 반복</option>
+      </select>
+      <div id="recurrenceCountWrap" style="display:none;">
+        <label class="form-label">생성할 횟수</label>
+        <input type="number" id="newMatchCount" value="12" min="1" max="52">
+        <p class="form-hint">기본 12회 — 매주면 약 3개월, 2주마다면 약 6개월</p>
+      </div>
+      <button class="btn btn-primary add-form-btn" id="confirmAddMatch">경기 추가</button>
+    </div>
+  `;
+}
+
+function bindMatchAddForm() {
+  document.getElementById('newMatchRecurrence')?.addEventListener('change', e => {
+    const w = document.getElementById('recurrenceCountWrap');
+    if (w) w.style.display = e.target.value !== 'none' ? 'block' : 'none';
+  });
+  document.getElementById('confirmAddMatch')?.addEventListener('click', async () => {
+    const title = document.getElementById('newMatchTitle').value.trim();
+    const date = document.getElementById('newMatchDate').value;
+    const time = document.getElementById('newMatchTime').value;
+    const location = document.getElementById('newMatchLocation').value.trim();
+    const recurrence = document.getElementById('newMatchRecurrence').value;
+    const count = parseInt(document.getElementById('newMatchCount')?.value || '1', 10);
+    if (!title || !date) { alert('제목과 날짜는 필수입니다.'); return; }
+    haptic();
+    await actionAddMatch(title, date, time || null, location || null, recurrence, count);
+  });
 }
 
 async function actionRemoveMatch(id) {
@@ -1556,26 +1649,10 @@ function renderAttendance() {
         <div class="section-header">
           <div class="section-title">경기 추가</div>
         </div>
-        <div class="add-form" style="flex-direction:column;align-items:stretch;">
-          <input type="text" id="newMatchTitle" placeholder="경기 제목 (예: 주말 정기전 vs FC 노바)" autocomplete="off">
-          <input type="date" id="newMatchDate">
-          <input type="time" id="newMatchTime">
-          <input type="text" id="newMatchLocation" placeholder="장소 (예: 강남 풋살장 A코트)" autocomplete="off">
-          <button class="btn btn-primary add-form-btn" id="confirmAddMatch">경기 추가</button>
-        </div>
+        ${matchAddFormHTML()}
       ` : ''}
     `;
-    if (isAdmin()) {
-      document.getElementById('confirmAddMatch')?.addEventListener('click', async () => {
-        const title = document.getElementById('newMatchTitle').value.trim();
-        const date = document.getElementById('newMatchDate').value;
-        const time = document.getElementById('newMatchTime').value;
-        const location = document.getElementById('newMatchLocation').value.trim();
-        if (!title || !date) { alert('제목과 날짜는 필수입니다.'); return; }
-        haptic();
-        await actionAddMatch(title, date, time, location);
-      });
-    }
+    if (isAdmin()) bindMatchAddForm();
     return;
   }
 
@@ -1626,6 +1703,34 @@ function renderAttendance() {
         </div>
       `;
     }).join('')}
+
+    ${isAdmin() ? `
+      ${(() => {
+        const today = new Date().toISOString().slice(0, 10);
+        const upcoming = state.matches.filter(m => m.match_date >= today && m.id !== match.id);
+        return upcoming.length > 0 ? `
+          <div class="section-header">
+            <div class="section-title">예정된 다음 경기 (${upcoming.length}개)</div>
+            <div class="section-meta">운영자 전용</div>
+          </div>
+          ${upcoming.slice(0, 10).map(m => `
+            <div class="upcoming-match-row">
+              <div>
+                <div class="um-info">${escapeHtml(m.title)}</div>
+                <div class="um-meta">📅 ${m.match_date}${m.match_time ? ' · ' + m.match_time.slice(0,5) : ''}${m.location ? ' · ' + escapeHtml(m.location) : ''}</div>
+              </div>
+              <button class="um-del" data-remove-match="${m.id}">삭제</button>
+            </div>
+          `).join('')}
+          ${upcoming.length > 10 ? `<p class="form-hint" style="text-align:center;margin-top:8px;">+ ${upcoming.length - 10}개 더</p>` : ''}
+        ` : '';
+      })()}
+
+      <div class="section-header" style="margin-top:24px;">
+        <div class="section-title">+ 새 경기 추가</div>
+      </div>
+      ${matchAddFormHTML()}
+    ` : ''}
   `;
 
   document.querySelectorAll('[data-vote]').forEach(btn => {
@@ -1636,10 +1741,13 @@ function renderAttendance() {
       await actionVote(match.id, memberId, vote);
     });
   });
-  document.querySelector('[data-remove-match]')?.addEventListener('click', async (e) => {
-    haptic();
-    await actionRemoveMatch(e.currentTarget.dataset.removeMatch);
+  document.querySelectorAll('[data-remove-match]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      haptic();
+      await actionRemoveMatch(e.currentTarget.dataset.removeMatch);
+    });
   });
+  if (isAdmin()) bindMatchAddForm();
 }
 
 function renderFees() {
