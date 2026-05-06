@@ -985,7 +985,9 @@
   }
   .upcoming-match-row .um-info { color: var(--text); }
   .upcoming-match-row .um-meta { color: var(--text-dim); font-size: 11px; margin-top: 2px; }
-  .upcoming-match-row .um-del {
+  .upcoming-match-row .um-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .upcoming-match-row .um-del,
+  .upcoming-match-row .um-edit {
     background: transparent;
     border: 1px solid var(--border);
     color: var(--text-muted);
@@ -995,6 +997,31 @@
     cursor: pointer;
     font-family: var(--font-body);
   }
+  .upcoming-match-row .um-edit { color: var(--accent); border-color: var(--accent); }
+  .match-edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 6px;
+  }
+  .match-edit-form input {
+    width: 100%;
+    padding: 8px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: var(--font-body);
+  }
+  .match-edit-form .mef-row { display: flex; gap: 8px; }
+  .match-edit-form .mef-row input { flex: 1; }
+  .match-edit-form .mef-buttons { display: flex; gap: 8px; margin-top: 4px; }
+  .match-edit-form .mef-buttons .btn { flex: 1; }
 
   /* === ADMIN QUICK BAR (회비 탭 운영자 도구) === */
   .admin-quick-bar {
@@ -1169,7 +1196,8 @@ let state = {
     bank_name: '',
     bank_account_number: '',
     bank_account_holder: ''
-  }
+  },
+  editingMatchId: null
 };
 
 function isAdmin() { return state.user?.role === 'admin'; }
@@ -1404,6 +1432,36 @@ async function actionRemoveMatch(id) {
   if (error) { alert('실패: ' + error.message); return; }
   await loadAll();
   render();
+}
+
+async function actionUpdateMatch(id, title, date, time, location) {
+  if (!isAdmin()) { alert('운영자만 가능해요.'); return false; }
+  if (!title || !date) { alert('제목과 날짜는 필수입니다.'); return false; }
+  const { error } = await sb.from('matches').update({
+    title, match_date: date, match_time: time || null, location: location || null
+  }).eq('id', id);
+  if (error) { alert('실패: ' + error.message); return false; }
+  state.editingMatchId = null;
+  await loadAll();
+  render();
+  return true;
+}
+
+function matchEditFormHTML(match) {
+  return `
+    <div class="match-edit-form" data-edit-form="${match.id}">
+      <input type="text" class="mef-title" value="${escapeHtml(match.title)}" placeholder="경기 제목" autocomplete="off">
+      <div class="mef-row">
+        <input type="date" class="mef-date" value="${match.match_date}">
+        <input type="time" class="mef-time" value="${match.match_time ? match.match_time.slice(0,5) : ''}">
+      </div>
+      <input type="text" class="mef-location" value="${match.location ? escapeHtml(match.location) : ''}" placeholder="장소" autocomplete="off">
+      <div class="mef-buttons">
+        <button class="btn btn-primary" data-save-match="${match.id}">저장</button>
+        <button class="btn" data-cancel-edit="${match.id}">취소</button>
+      </div>
+    </div>
+  `;
 }
 
 // ========== ADMIN QUICK ACTIONS ==========
@@ -1672,15 +1730,23 @@ function renderAttendance() {
     counts[v]++;
   });
 
+  const isEditingNext = state.editingMatchId === match.id;
   document.getElementById('panel-attendance').innerHTML = `
+    ${isEditingNext ? matchEditFormHTML(match) : `
     <div class="match-card" style="margin-bottom: 16px;">
       <div class="match-title">${escapeHtml(match.title)}</div>
       <div class="match-meta">
         <span>📅 ${match.match_date}${match.match_time ? ' · ' + match.match_time.slice(0,5) : ''}</span>
         ${match.location ? `<span>📍 ${escapeHtml(match.location)}</span>` : ''}
       </div>
-      ${isAdmin() ? `<button class="btn" data-remove-match="${match.id}" style="margin-top:14px;">경기 삭제</button>` : ''}
+      ${isAdmin() ? `
+        <div style="display:flex;gap:8px;margin-top:14px;">
+          <button class="btn" data-edit-match="${match.id}" style="flex:1;">경기 수정</button>
+          <button class="btn" data-remove-match="${match.id}" style="flex:1;">경기 삭제</button>
+        </div>
+      ` : ''}
     </div>
+    `}
 
     <div class="attendance-summary">
       <div class="summary-pill yes"><div class="num">${counts.yes}</div><div class="lbl">참석</div></div>
@@ -1723,13 +1789,16 @@ function renderAttendance() {
             <div class="section-title">예정된 다음 경기 (${upcoming.length}개)</div>
             <div class="section-meta">운영자 전용</div>
           </div>
-          ${upcoming.slice(0, 10).map(m => `
+          ${upcoming.slice(0, 10).map(m => state.editingMatchId === m.id ? matchEditFormHTML(m) : `
             <div class="upcoming-match-row">
               <div>
                 <div class="um-info">${escapeHtml(m.title)}</div>
                 <div class="um-meta">📅 ${m.match_date}${m.match_time ? ' · ' + m.match_time.slice(0,5) : ''}${m.location ? ' · ' + escapeHtml(m.location) : ''}</div>
               </div>
-              <button class="um-del" data-remove-match="${m.id}">삭제</button>
+              <div class="um-actions">
+                <button class="um-edit" data-edit-match="${m.id}">수정</button>
+                <button class="um-del" data-remove-match="${m.id}">삭제</button>
+              </div>
             </div>
           `).join('')}
           ${upcoming.length > 10 ? `<p class="form-hint" style="text-align:center;margin-top:8px;">+ ${upcoming.length - 10}개 더</p>` : ''}
@@ -1755,6 +1824,33 @@ function renderAttendance() {
     btn.addEventListener('click', async (e) => {
       haptic();
       await actionRemoveMatch(e.currentTarget.dataset.removeMatch);
+    });
+  });
+  document.querySelectorAll('[data-edit-match]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      haptic();
+      state.editingMatchId = e.currentTarget.dataset.editMatch;
+      render();
+    });
+  });
+  document.querySelectorAll('[data-cancel-edit]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      haptic();
+      state.editingMatchId = null;
+      render();
+    });
+  });
+  document.querySelectorAll('[data-save-match]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      haptic();
+      const id = e.currentTarget.dataset.saveMatch;
+      const form = document.querySelector(`[data-edit-form="${id}"]`);
+      if (!form) return;
+      const title = form.querySelector('.mef-title').value.trim();
+      const date = form.querySelector('.mef-date').value;
+      const time = form.querySelector('.mef-time').value;
+      const location = form.querySelector('.mef-location').value.trim();
+      await actionUpdateMatch(id, title, date, time || null, location || null);
     });
   });
   if (isAdmin()) bindMatchAddForm();
