@@ -769,6 +769,182 @@
     .summary-pill .num { font-size: 36px; }
   }
 
+  /* === TEAMS (자동 팀 분할) === */
+  .teams-block {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .teams-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 14px;
+    gap: 8px;
+  }
+  .teams-block-title {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 18px;
+    letter-spacing: 0.5px;
+  }
+  .teams-block-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+  .team-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-left-width: 4px;
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .team-card.team-color-0 { border-left-color: var(--accent); }
+  .team-card.team-color-1 { border-left-color: var(--info); }
+  .team-card.team-color-2 { border-left-color: var(--warning); }
+  .team-card.team-color-3 { border-left-color: var(--danger); }
+  .team-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 10px;
+  }
+  .team-card-name {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 15px;
+    letter-spacing: 1px;
+  }
+  .team-card.team-color-0 .team-card-name { color: var(--accent); }
+  .team-card.team-color-1 .team-card-name { color: var(--info); }
+  .team-card.team-color-2 .team-card-name { color: var(--warning); }
+  .team-card.team-color-3 .team-card-name { color: var(--danger); }
+  .team-card-count {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .team-members-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .team-member-chip {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 36px;
+  }
+  .team-member-chip.is-me {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .team-member-chip .move-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-left: 4px;
+    line-height: 1;
+    min-height: 22px;
+  }
+  .team-member-chip .move-btn:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+  .bench-card {
+    border-left: none;
+    border: 1px dashed var(--border-strong);
+  }
+  .bench-card .team-card-name { color: var(--text-muted); }
+  .teams-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .teams-actions .btn { flex: 1; }
+  .teams-pending {
+    background: var(--bg-card);
+    border: 1px dashed var(--border-strong);
+    border-radius: 12px;
+    padding: 18px 14px;
+    margin-bottom: 16px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.6;
+  }
+  .teams-pending .pending-emoji {
+    font-size: 32px;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  /* Move popup (운영자 멤버 이동) */
+  .move-popup {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.65);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  .move-popup-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: 14px;
+    padding: 20px;
+    max-width: 320px;
+    width: 100%;
+  }
+  .move-popup-card h3 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 17px;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .move-popup-card .move-current {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+  }
+  .move-popup-card .move-target {
+    display: block;
+    width: 100%;
+    margin-bottom: 8px;
+    text-align: left;
+    padding: 12px 14px;
+  }
+  .move-popup-card .move-cancel {
+    background: transparent;
+    color: var(--text-muted);
+    border-color: var(--border);
+    margin-top: 4px;
+  }
+
   /* === LOGIN SCREEN === */
   .login-screen {
     position: fixed;
@@ -1630,6 +1806,304 @@ document.addEventListener('touchend', (e) => {
   touchStartY = 0;
 }, { passive: true });
 
+// ========== TEAMS (자동 분할) ==========
+const TEAM_LABELS = ['A팀', 'B팀', 'C팀', 'D팀', 'E팀'];
+const TEAM_GEN_INFLIGHT = new Set();
+
+function shuffleArray(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// 분배 규칙:
+// 1~3명: 팀 1개 (모자라서 게임 불가지만 일단 보여줌)
+// 4~11명: 6명 못 채우면 균등 2등분 (5+5, 5+6 등)
+// 12~17명: 6명 팀 가능한 만큼 + 나머지가 4~5명이면 추가팀, 1~3명이면 교체 대기
+// 18명+: 같은 룰 (6+6+6+나머지)
+function splitIntoTeams(memberIds) {
+  const shuffled = shuffleArray(memberIds);
+  const n = shuffled.length;
+  if (n === 0) return { teams: [], bench: [] };
+  if (n < 4) return { teams: [shuffled], bench: [] };
+  if (n < 12) {
+    const half = Math.ceil(n / 2);
+    return { teams: [shuffled.slice(0, half), shuffled.slice(half)], bench: [] };
+  }
+  const fullTeams = Math.floor(n / 6);
+  const remainder = n - fullTeams * 6;
+  const teams = [];
+  for (let i = 0; i < fullTeams; i++) {
+    teams.push(shuffled.slice(i * 6, (i + 1) * 6));
+  }
+  if (remainder >= 4) {
+    teams.push(shuffled.slice(fullTeams * 6));
+    return { teams, bench: [] };
+  }
+  if (remainder > 0) {
+    return { teams, bench: shuffled.slice(fullTeams * 6) };
+  }
+  return { teams, bench: [] };
+}
+
+function getMatchStartTime(match) {
+  if (!match || !match.match_time) return null;
+  return new Date(`${match.match_date}T${match.match_time}`);
+}
+
+// 'no-time' | 'too-early' | 'open' | 'too-late'
+function getTeamWindowStatus(match) {
+  const start = getMatchStartTime(match);
+  if (!start) return 'no-time';
+  const now = new Date();
+  const windowStart = new Date(start.getTime() - 20 * 60 * 1000);
+  const windowEnd = new Date(start.getTime() + 4 * 60 * 60 * 1000);
+  if (now < windowStart) return 'too-early';
+  if (now > windowEnd) return 'too-late';
+  return 'open';
+}
+
+function attendingMemberIds(matchId) {
+  const memberSet = new Set(state.members.map(m => m.id));
+  return state.attendance
+    .filter(a => a.match_id === matchId && a.vote === 'yes' && memberSet.has(a.member_id))
+    .map(a => a.member_id);
+}
+
+async function actionGenerateTeams(match, opts = {}) {
+  if (TEAM_GEN_INFLIGHT.has(match.id)) return;
+  const ids = attendingMemberIds(match.id);
+  if (ids.length < 4) {
+    if (!opts.silent) alert('참석 인원이 4명 미만이라 팀을 짤 수 없어요.');
+    return;
+  }
+  const split = splitIntoTeams(ids);
+  const prevCount = (match.teams && match.teams.shuffle_count) || 0;
+  const teamsData = {
+    teams: split.teams,
+    bench: split.bench,
+    shuffled_at: new Date().toISOString(),
+    shuffle_count: prevCount + 1
+  };
+  TEAM_GEN_INFLIGHT.add(match.id);
+  try {
+    let q = sb.from('matches').update({ teams: teamsData }).eq('id', match.id);
+    if (opts.onlyIfNull) q = q.is('teams', null);
+    const { error } = await q;
+    if (error) {
+      if (!opts.silent) alert('저장 실패: ' + error.message);
+      return;
+    }
+    await loadAll();
+    render();
+  } finally {
+    TEAM_GEN_INFLIGHT.delete(match.id);
+  }
+}
+
+async function actionMoveTeamMember(match, memberId, targetIndex) {
+  if (!isAdmin()) return;
+  if (!match.teams || !match.teams.teams) return;
+  const data = JSON.parse(JSON.stringify(match.teams));
+  data.teams = (data.teams || []).map(t => t.filter(id => id !== memberId));
+  data.bench = (data.bench || []).filter(id => id !== memberId);
+  if (targetIndex === -1) {
+    data.bench.push(memberId);
+  } else if (data.teams[targetIndex]) {
+    data.teams[targetIndex].push(memberId);
+  }
+  const { error } = await sb.from('matches').update({ teams: data }).eq('id', match.id);
+  if (error) { alert('저장 실패: ' + error.message); return; }
+  await loadAll();
+  render();
+}
+
+function showMovePopup(match, memberId, fromIdx) {
+  const m = state.members.find(x => x.id === memberId);
+  if (!m || !match.teams) return;
+  const data = match.teams;
+  const teamCount = (data.teams || []).length;
+  const targets = [];
+  for (let i = 0; i < teamCount; i++) {
+    if (i === fromIdx) continue;
+    targets.push({ idx: i, label: TEAM_LABELS[i] || `${i+1}팀`, count: data.teams[i].length });
+  }
+  if (fromIdx !== -1) {
+    targets.push({ idx: -1, label: '🔄 교체 대기', count: (data.bench || []).length });
+  }
+  const fromLabel = fromIdx === -1 ? '교체 대기' : (TEAM_LABELS[fromIdx] || `${fromIdx+1}팀`);
+  const popup = document.createElement('div');
+  popup.className = 'move-popup';
+  popup.innerHTML = `
+    <div class="move-popup-card" onclick="event.stopPropagation()">
+      <h3>${escapeHtml(m.name)} 이동</h3>
+      <div class="move-current">현재: ${fromLabel}</div>
+      ${targets.map(t => `
+        <button class="btn move-target" data-target="${t.idx}">
+          ${t.label} <span style="color:var(--text-dim);font-weight:500;margin-left:4px;">(${t.count}명)</span>
+        </button>
+      `).join('')}
+      <button class="btn move-target move-cancel" data-target="cancel">취소</button>
+    </div>
+  `;
+  document.body.appendChild(popup);
+  popup.addEventListener('click', async (e) => {
+    if (e.target === popup) { popup.remove(); return; }
+    const btn = e.target.closest('[data-target]');
+    if (!btn) return;
+    const target = btn.dataset.target;
+    popup.remove();
+    if (target === 'cancel') return;
+    haptic();
+    await actionMoveTeamMember(match, memberId, parseInt(target));
+  });
+}
+
+function renderTeamsSection(match) {
+  if (!match) return '';
+  const status = getTeamWindowStatus(match);
+  const has = !!(match.teams && match.teams.teams && match.teams.teams.length > 0);
+  const yesCount = attendingMemberIds(match.id).length;
+
+  // 시간 윈도우 열렸고 아직 안 짜졌으면 자동 생성 (조용히, 첫 사용자만 성공)
+  if (status === 'open' && !has && yesCount >= 4) {
+    actionGenerateTeams(match, { silent: true, onlyIfNull: true });
+  }
+
+  if (!has) {
+    if (status === 'no-time') {
+      if (!isAdmin()) return '';
+      return `
+        <div class="teams-pending">
+          <span class="pending-emoji">⚽</span>
+          경기 시간이 설정되지 않아 자동 팀 짜기를 사용할 수 없어요.<br>
+          <button class="btn" id="teamsManualBtn" style="margin-top:10px;">🎲 지금 팀 짜기</button>
+        </div>
+      `;
+    }
+    if (status === 'too-early') {
+      const start = getMatchStartTime(match);
+      const minsToWindow = Math.max(1, Math.ceil((start.getTime() - 20*60*1000 - Date.now()) / 60000));
+      const hh = Math.floor(minsToWindow / 60);
+      const mm = minsToWindow % 60;
+      const timeStr = (hh > 0 ? `${hh}시간 ` : '') + (mm > 0 ? `${mm}분` : '');
+      return `
+        <div class="teams-pending">
+          <span class="pending-emoji">⚽</span>
+          경기 시작 <strong style="color:var(--accent);">20분 전</strong>에 팀이 자동으로 공개돼요<br>
+          <span style="font-size:11px;">현재 참석 ${yesCount}명 · ${timeStr} 후 공개</span>
+          ${isAdmin() ? '<br><button class="btn" id="teamsManualBtn" style="margin-top:10px;">🎲 미리 짜기 (운영자)</button>' : ''}
+        </div>
+      `;
+    }
+    if (status === 'too-late') return '';
+    if (yesCount < 4) {
+      return `
+        <div class="teams-pending">
+          <span class="pending-emoji">⚽</span>
+          참석 인원이 4명 미만이라 팀을 짤 수 없어요 (현재 ${yesCount}명)
+        </div>
+      `;
+    }
+    return `
+      <div class="teams-pending">
+        <span class="pending-emoji">⚽</span>
+        팀 짜는 중...
+      </div>
+    `;
+  }
+
+  const data = match.teams;
+  const memberById = id => state.members.find(m => m.id === id);
+  const myId = state.user?.id;
+  const totalCount = (data.teams || []).reduce((s,t) => s + t.length, 0) + (data.bench || []).length;
+
+  const renderChip = (id, ctx) => {
+    const m = memberById(id);
+    if (!m) return '';
+    const isMe = id === myId;
+    return `
+      <span class="team-member-chip ${isMe ? 'is-me' : ''}">
+        ${escapeHtml(m.name)}${isMe ? ' (나)' : ''}
+        ${isAdmin() ? `<button class="move-btn" data-team-move="${id}|${ctx}" title="다른 팀으로">▾</button>` : ''}
+      </span>
+    `;
+  };
+
+  return `
+    <div class="teams-block">
+      <div class="teams-block-header">
+        <div class="teams-block-title">⚽ 오늘의 팀 (${totalCount}명)</div>
+        <div class="teams-block-meta">${data.shuffle_count > 1 ? `${data.shuffle_count}번째 섞기` : '자동 분할'}</div>
+      </div>
+      ${data.teams.map((team, idx) => `
+        <div class="team-card team-color-${idx % 4}">
+          <div class="team-card-header">
+            <div class="team-card-name">${TEAM_LABELS[idx] || `${idx+1}팀`}</div>
+            <div class="team-card-count">${team.length}명</div>
+          </div>
+          <div class="team-members-list">
+            ${team.length > 0 ? team.map(id => renderChip(id, idx)).join('') : '<span style="color:var(--text-dim);font-size:12px;">비어있음</span>'}
+          </div>
+        </div>
+      `).join('')}
+      ${(data.bench && data.bench.length > 0) ? `
+        <div class="team-card bench-card">
+          <div class="team-card-header">
+            <div class="team-card-name">🔄 교체 대기</div>
+            <div class="team-card-count">${data.bench.length}명</div>
+          </div>
+          <div class="team-members-list">
+            ${data.bench.map(id => renderChip(id, -1)).join('')}
+          </div>
+        </div>
+      ` : ''}
+      ${isAdmin() ? `
+        <div class="teams-actions">
+          <button class="btn" id="teamsReshuffleBtn">🔀 다시 섞기</button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function bindTeamsHandlers(match) {
+  if (!match) return;
+  document.getElementById('teamsReshuffleBtn')?.addEventListener('click', async () => {
+    if (!confirm('다시 섞을까요? 모든 사용자에게 새 결과가 보입니다.')) return;
+    haptic();
+    await actionGenerateTeams(match);
+  });
+  document.getElementById('teamsManualBtn')?.addEventListener('click', async () => {
+    haptic();
+    await actionGenerateTeams(match);
+  });
+  document.querySelectorAll('[data-team-move]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      haptic();
+      const [memberId, fromIdx] = e.currentTarget.dataset.teamMove.split('|');
+      showMovePopup(match, memberId, parseInt(fromIdx));
+    });
+  });
+}
+
+// 카운트다운/윈도우 자동 갱신 — 60초마다 overview만 다시 그림
+let __teamRefreshTimer = null;
+function scheduleTeamRefresh() {
+  if (__teamRefreshTimer) return;
+  __teamRefreshTimer = setInterval(() => {
+    const match = nextMatch();
+    if (!match) return;
+    const status = getTeamWindowStatus(match);
+    if (status === 'too-early' || status === 'open') {
+      renderOverview();
+    }
+  }, 60 * 1000);
+}
+
 // ========== RENDER ==========
 function render() {
   const today = new Date();
@@ -1684,6 +2158,8 @@ function renderOverview() {
       </div>
     ` : ''}
 
+    ${renderTeamsSection(match)}
+
     <div class="stats-grid">
       <div class="stat-card" data-go="attendance" style="--accent-color: var(--accent);">
         <div class="label">이번 주 참석</div>
@@ -1706,6 +2182,9 @@ function renderOverview() {
   document.querySelectorAll('[data-go]').forEach(el => {
     el.addEventListener('click', () => { haptic(); setTab(el.dataset.go); });
   });
+
+  bindTeamsHandlers(match);
+  scheduleTeamRefresh();
 }
 
 function renderAttendance() {
