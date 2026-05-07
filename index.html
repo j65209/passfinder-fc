@@ -1944,6 +1944,15 @@ async function actionGenerateTeams(match, opts = {}) {
   }
 }
 
+async function actionResetTeams(match) {
+  if (!isAdmin()) { alert('운영자만 가능해요.'); return; }
+  if (!confirm('오늘의 팀을 초기화할까요? 현재 분할된 결과가 모두 지워져요. (시간 윈도우가 열려 있으면 자동으로 다시 짜져요)')) return;
+  const { error } = await sb.from('matches').update({ teams: null }).eq('id', match.id);
+  if (error) { alert('초기화 실패: ' + error.message); return; }
+  await loadAll();
+  render();
+}
+
 async function actionMoveTeamMember(match, memberId, targetIndex) {
   if (!isAdmin()) return;
   if (!match.teams || !match.teams.teams) return;
@@ -2104,6 +2113,7 @@ function renderTeamsSection(match) {
       ${isAdmin() ? `
         <div class="teams-actions">
           <button class="btn" id="teamsReshuffleBtn">🔀 다시 섞기</button>
+          <button class="btn" id="teamsResetBtn">↺ 초기화</button>
         </div>
       ` : ''}
     </div>
@@ -2116,6 +2126,10 @@ function bindTeamsHandlers(match) {
     if (!confirm('다시 섞을까요? 모든 사용자에게 새 결과가 보입니다.')) return;
     haptic();
     await actionGenerateTeams(match);
+  });
+  document.getElementById('teamsResetBtn')?.addEventListener('click', async () => {
+    haptic();
+    await actionResetTeams(match);
   });
   document.getElementById('teamsManualBtn')?.addEventListener('click', async () => {
     haptic();
