@@ -1362,7 +1362,8 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // ========== STATE ==========
 let state = {
   user: null,            // { role: 'admin' | 'member', id, name }
-  members: [],
+  members: [],           // 정식 팀원 (is_candidate=false)
+  candidates: [],        // 후보 (is_candidate=true) — 모든 참여 로직에서 제외
   matches: [],
   attendance: [],
   payments: [],
@@ -1454,7 +1455,9 @@ async function loadAll() {
     sb.from('payments').select('*'),
     sb.from('app_config').select('*')
   ]);
-  state.members = members.data || [];
+  const allMembers = members.data || [];
+  state.members = allMembers.filter(m => !m.is_candidate);
+  state.candidates = allMembers.filter(m => m.is_candidate);
   state.matches = matches.data || [];
   state.attendance = attendance.data || [];
   state.payments = payments.data || [];
@@ -1512,6 +1515,33 @@ async function actionAddMember(name, phone) {
 async function actionRemoveMember(id) {
   if (!isAdmin()) { alert('운영자만 삭제할 수 있어요.'); return; }
   if (!confirm('정말 삭제할까요? 이 팀원의 참석/회비 기록도 함께 삭제됩니다.')) return;
+  const { error } = await sb.rpc('delete_member', { p_id: id });
+  if (error) { alert('실패: ' + error.message); return; }
+  await loadAll();
+  render();
+}
+
+async function actionAddCandidate(name, phone) {
+  if (!isAdmin()) { alert('운영자만 가능해요.'); return false; }
+  const { error } = await sb.rpc('add_candidate', { p_name: name, p_phone: phone });
+  if (error) { alert('실패: ' + error.message); return false; }
+  await loadAll();
+  render();
+  return true;
+}
+
+async function actionPromoteCandidate(id) {
+  if (!isAdmin()) { alert('운영자만 가능해요.'); return; }
+  if (!confirm('이 후보를 정식 팀원으로 등록할까요?')) return;
+  const { error } = await sb.rpc('set_candidate', { p_id: id, p_is_candidate: false });
+  if (error) { alert('실패: ' + error.message); return; }
+  await loadAll();
+  render();
+}
+
+async function actionRemoveCandidate(id) {
+  if (!isAdmin()) { alert('운영자만 가능해요.'); return; }
+  if (!confirm('이 후보를 삭제할까요?')) return;
   const { error } = await sb.rpc('delete_member', { p_id: id });
   if (error) { alert('실패: ' + error.message); return; }
   await loadAll();
@@ -2472,6 +2502,37 @@ function renderMembers() {
         ${isAdmin() ? `<button class="btn" data-remove="${m.id}">삭제</button>` : ''}
       </div>
     `).join('')}
+
+    <div class="section-header" style="margin-top:24px;">
+      <div class="section-title">팀원 후보 ${state.candidates.length}명 <span style="font-size:12px;color:var(--text-muted);font-weight:400;">(추후 진행예정)</span></div>
+    </div>
+
+    ${state.candidates.length === 0 ? `
+      <div class="empty-state">${isAdmin() ? '아직 등록된 후보가 없어요. 아래에서 추가할 수 있어요.' : '아직 후보가 없어요'}</div>
+    ` : state.candidates.map(c => `
+      <div class="row">
+        <div class="row-left">
+          <div class="member-info">
+            <div class="name" style="color:var(--text-muted);">${escapeHtml(c.name)}${c.phone ? ` <span style="font-size:13px;font-weight:400;margin-left:6px;">${formatPhone(c.phone)}</span>` : ''}</div>
+            <div class="meta">${c.joined || ''} 등록 · 후보</div>
+          </div>
+        </div>
+        ${isAdmin() ? `
+          <div style="display:flex;gap:6px;">
+            <button class="btn" data-promote="${c.id}">정식 등록</button>
+            <button class="btn" data-remove-cand="${c.id}">삭제</button>
+          </div>
+        ` : ''}
+      </div>
+    `).join('')}
+
+    ${isAdmin() ? `
+      <div class="add-form" style="flex-direction:column;align-items:stretch;margin-top:14px;">
+        <input type="text" id="newCandidateName" placeholder="후보 이름" autocomplete="off">
+        <input type="tel" id="newCandidatePhone" placeholder="01012345678" inputmode="numeric" pattern="[0-9]{4,15}" maxlength="15" autocomplete="off">
+        <button class="btn btn-primary add-form-btn" id="confirmAddCandidate">후보 추가</button>
+      </div>
+    ` : ''}
   `;
 
   if (!isAdmin()) return;
@@ -2481,6 +2542,32 @@ function renderMembers() {
       haptic();
       await actionRemoveMember(btn.dataset.remove);
     });
+  });
+
+  document.querySelectorAll('[data-promote]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      haptic();
+      await actionPromoteCandidate(btn.dataset.promote);
+    });
+  });
+
+  document.querySelectorAll('[data-remove-cand]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      haptic();
+      await actionRemoveCandidate(btn.dataset.removeCand);
+    });
+  });
+
+  document.getElementById('confirmAddCandidate')?.addEventListener('click', async () => {
+    const name = document.getElementById('newCandidateName').value.trim();
+    const phone = document.getElementById('newCandidatePhone').value.trim();
+    if (!name || !phone) { alert('이름과 연락처를 모두 입력해주세요.'); return; }
+    haptic();
+    const ok = await actionAddCandidate(name, phone);
+    if (ok) {
+      document.getElementById('newCandidateName').value = '';
+      document.getElementById('newCandidatePhone').value = '';
+    }
   });
 }
 
