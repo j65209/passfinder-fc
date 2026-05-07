@@ -1539,6 +1539,15 @@ async function actionPromoteCandidate(id) {
   render();
 }
 
+async function actionDemoteMember(id) {
+  if (!isAdmin()) { alert('운영자만 가능해요.'); return; }
+  if (!confirm('이 팀원을 후보로 내릴까요? 참석/회비 기록은 그대로 남지만 모든 활성 목록에서 빠집니다.')) return;
+  const { error } = await sb.rpc('set_candidate', { p_id: id, p_is_candidate: true });
+  if (error) { alert('실패: ' + error.message); return; }
+  await loadAll();
+  render();
+}
+
 async function actionRemoveCandidate(id) {
   if (!isAdmin()) { alert('운영자만 가능해요.'); return; }
   if (!confirm('이 후보를 삭제할까요?')) return;
@@ -2499,7 +2508,12 @@ function renderMembers() {
             <div class="meta">${m.joined || ''} 가입</div>
           </div>
         </div>
-        ${isAdmin() ? `<button class="btn" data-remove="${m.id}">삭제</button>` : ''}
+        ${isAdmin() ? `
+          <div style="display:flex;gap:6px;">
+            <button class="btn" data-demote="${m.id}">후보로</button>
+            <button class="btn" data-remove="${m.id}">삭제</button>
+          </div>
+        ` : ''}
       </div>
     `).join('')}
 
@@ -2541,6 +2555,13 @@ function renderMembers() {
     btn.addEventListener('click', async () => {
       haptic();
       await actionRemoveMember(btn.dataset.remove);
+    });
+  });
+
+  document.querySelectorAll('[data-demote]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      haptic();
+      await actionDemoteMember(btn.dataset.demote);
     });
   });
 
