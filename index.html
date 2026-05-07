@@ -1476,7 +1476,7 @@ function nextMatch() {
 }
 function getVote(matchId, memberId) {
   const a = state.attendance.find(x => x.match_id === matchId && x.member_id === memberId);
-  return a?.vote || 'none';
+  return a?.vote || 'maybe';
 }
 function getPayment(memberId, month) {
   return state.payments.find(p => p.member_id === memberId && p.month === month);
