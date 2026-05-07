@@ -2465,7 +2465,7 @@ function renderMembers() {
       <div class="row">
         <div class="row-left">
           <div class="member-info">
-            <div class="name">${escapeHtml(m.name)}${state.user?.id === m.id ? ' <span style="color:var(--accent);font-size:11px;">(나)</span>' : ''}</div>
+            <div class="name">${escapeHtml(m.name)}${state.user?.id === m.id ? ' <span style="color:var(--accent);font-size:11px;">(나)</span>' : ''}${m.phone ? ` <span style="color:var(--text-muted);font-size:13px;font-weight:400;margin-left:6px;">${formatPhone(m.phone)}</span>` : ''}</div>
             <div class="meta">${m.joined || ''} 가입</div>
           </div>
         </div>
@@ -2482,6 +2482,15 @@ function renderMembers() {
       await actionRemoveMember(btn.dataset.remove);
     });
   });
+}
+
+// 핸드폰 포맷 (010-1234-5678 / 02-1234-5678 등)
+function formatPhone(p) {
+  if (!p) return '';
+  const d = String(p).replace(/\D/g, '');
+  if (d.length === 11) return `${d.slice(0,3)}-${d.slice(3,7)}-${d.slice(7)}`;
+  if (d.length === 10) return `${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}`;
+  return d;
 }
 
 // HTML escape (XSS 방지)
