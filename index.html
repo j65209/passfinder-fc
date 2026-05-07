@@ -1273,14 +1273,14 @@
     <h2>패스파인더 FC</h2>
     <div class="login-sub">PASSFINDER FC</div>
 
-    <!-- 회원가입 / 로그인 -->
+    <!-- 입장 / 자동 가입 -->
     <div class="login-mode active" id="memberMode">
       <label>이름</label>
       <input type="text" id="loginMemberName" placeholder="홍길동" autocomplete="name">
       <label>연락처 (- 없이 입력)</label>
       <input type="tel" id="loginMemberPhone" placeholder="01012345678" inputmode="numeric" pattern="[0-9]{4,15}" maxlength="15" autocomplete="tel">
-      <button class="login-btn" id="loginMemberBtn">회원가입</button>
-      <p class="login-hint">처음이시면 자동으로 가입돼요.<br>같은 이름+연락처로 다시 들어오면 자동 로그인.</p>
+      <button class="login-btn" id="loginMemberBtn">입장하기</button>
+      <p class="login-hint">처음이시면 자동으로 등록돼요.<br>같은 연락처로 다시 들어오면 자동 입장.</p>
     </div>
 
     <!-- 운영자 로그인 -->
@@ -1512,7 +1512,7 @@ async function actionAddMember(name, phone) {
 async function actionRemoveMember(id) {
   if (!isAdmin()) { alert('운영자만 삭제할 수 있어요.'); return; }
   if (!confirm('정말 삭제할까요? 이 팀원의 참석/회비 기록도 함께 삭제됩니다.')) return;
-  const { error } = await sb.from('members').delete().eq('id', id);
+  const { error } = await sb.rpc('delete_member', { p_id: id });
   if (error) { alert('실패: ' + error.message); return; }
   await loadAll();
   render();
@@ -1543,10 +1543,11 @@ async function actionAddMatch(title, startDate, time, location, recurrence = 'no
   if (!isAdmin()) { alert('운영자만 가능해요.'); return false; }
   const interval = recurrence === 'weekly' ? 7 : (recurrence === 'biweekly' ? 14 : 0);
   const total = recurrence === 'none' ? 1 : Math.max(1, Math.min(count, 52));
+  const fmtLocal = (dt) => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
   const dates = [];
   let d = new Date(startDate + 'T00:00:00');
   for (let i = 0; i < total; i++) {
-    dates.push(d.toISOString().slice(0, 10));
+    dates.push(fmtLocal(d));
     if (interval > 0) d = new Date(d.getTime() + interval * 86400000);
   }
   const records = dates.map(date => ({
@@ -2456,7 +2457,7 @@ function renderMembers() {
       <div class="section-title">팀원 ${state.members.length}명</div>
     </div>
 
-    ${!isAdmin() ? `<div class="info-banner" style="margin-bottom:12px;"><strong>📲 회원가입은 직접</strong>새 팀원이 링크 접속 → 본인 정보 입력 → 자동 등록</div>` : ''}
+    ${!isAdmin() ? `<div class="info-banner" style="margin-bottom:12px;"><strong>📲 입장은 직접</strong>새 팀원이 링크 접속 → 본인 정보 입력 → 자동 등록</div>` : ''}
 
     ${state.members.length === 0 ? `
       <div class="empty-state">${isAdmin() ? '아직 가입한 팀원이 없어요. 사이트 링크를 공유하면 본인이 직접 가입할 수 있어요.' : '아직 팀원이 등록되지 않았어요'}</div>
