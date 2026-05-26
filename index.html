@@ -711,6 +711,67 @@
     margin-top: 4px;
   }
 
+  /* GUEST (용병) */
+  .guest-row {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .guest-row-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .guest-name {
+    font-weight: 700;
+    font-size: 14px;
+    word-break: break-all;
+  }
+  .guest-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .guest-row-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .guest-row-actions .btn {
+    padding: 8px 10px;
+    font-size: 12px;
+    min-height: 36px;
+  }
+  .guest-edit-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 600;
+    min-height: 40px;
+    min-width: 0;
+  }
+  .guest-edit-input:focus { outline: none; border-color: var(--accent); }
+  .guest-mark {
+    display: inline-block;
+    font-size: 9px;
+    background: rgba(255, 181, 71, 0.18);
+    color: var(--warning);
+    padding: 2px 5px;
+    border-radius: 4px;
+    margin-left: 4px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    vertical-align: middle;
+  }
   /* DIVIDER */
   .divider {
     height: 1px;
@@ -854,6 +915,10 @@
   .team-member-chip.is-me {
     border-color: var(--accent);
     color: var(--accent);
+  }
+  .team-member-chip.is-guest {
+    border-color: rgba(255, 181, 71, 0.4);
+    background: rgba(255, 181, 71, 0.06);
   }
   .team-member-chip .move-btn {
     background: transparent;
@@ -1370,6 +1435,7 @@ let state = {
   matches: [],
   attendance: [],
   payments: [],
+  guests: [],            // match_guests — 경기별 1회성 용병
   config: {
     monthly_fee: 30000,
     current_month: '',
@@ -1377,7 +1443,8 @@ let state = {
     bank_account_number: '',
     bank_account_holder: ''
   },
-  editingMatchId: null
+  editingMatchId: null,
+  editingGuestId: null
 };
 
 function isAdmin() { return state.user?.role === 'admin'; }
@@ -1451,11 +1518,12 @@ function logout() {
 
 // ========== DATA ==========
 async function loadAll() {
-  const [members, matches, attendance, payments, config] = await Promise.all([
+  const [members, matches, attendance, payments, guests, config] = await Promise.all([
     sb.from('members_public').select('*').order('joined'),
     sb.from('matches').select('*').order('match_date'),
     sb.from('attendance').select('*'),
     sb.from('payments').select('*'),
+    sb.from('match_guests').select('*').order('created_at'),
     sb.from('app_config').select('*')
   ]);
   const allMembers = members.data || [];
@@ -1464,6 +1532,7 @@ async function loadAll() {
   state.matches = matches.data || [];
   state.attendance = attendance.data || [];
   state.payments = payments.data || [];
+  state.guests = guests.data || [];
   if (config.data) {
     config.data.forEach(c => {
       if (c.key === 'monthly_fee') state.config.monthly_fee = parseInt(c.value);
@@ -1568,6 +1637,75 @@ async function actionPay(memberId, month, method) {
     paid_at: new Date().toISOString(), tx_id: txId,
     amount: state.config.monthly_fee
   }, { onConflict: 'member_id,month' });
+  if (error) { alert('실패: ' + error.message); return; }
+  await loadAll();
+  render();
+}
+
+// ========== GUEST (용병) ACTIONS ==========
+// 로그인된 모든 사용자가 추가/수정/삭제 가능 (운영자 권한 없이도)
+function guestsForMatch(matchId) {
+  return state.guests.filter(g => g.match_id === matchId);
+}
+
+async function actionAddGuest(matchId, name) {
+  const trimmed = (name || '').trim();
+  if (!trimmed) { alert('용병 이름을 입력하세요.'); return false; }
+  if (trimmed.length > 30) { alert('이름은 30자 이내로 입력하세요.'); return false; }
+  const adder = state.user?.id || null;
+  const adderName = state.user?.name || null;
+  const { data: inserted, error } = await sb.from('match_guests').insert({
+    match_id: matchId,
+    name: trimmed,
+    added_by_member_id: adder,
+    added_by_name: adderName
+  }).select().single();
+  if (error) { alert('실패: ' + error.message); return false; }
+
+  // 이미 팀이 짜져있으면 새 용병은 교체 대기로 합류
+  const match = state.matches.find(m => m.id === matchId);
+  if (match?.teams && inserted) {
+    const data = JSON.parse(JSON.stringify(match.teams));
+    data.bench = data.bench || [];
+    data.bench.push(`g:${inserted.id}`);
+    await sb.from('matches').update({ teams: data }).eq('id', matchId);
+  }
+
+  await loadAll();
+  render();
+  return true;
+}
+
+async function actionUpdateGuest(guestId, name) {
+  const trimmed = (name || '').trim();
+  if (!trimmed) { alert('용병 이름을 입력하세요.'); return false; }
+  if (trimmed.length > 30) { alert('이름은 30자 이내로 입력하세요.'); return false; }
+  const { error } = await sb.from('match_guests').update({
+    name: trimmed, updated_at: new Date().toISOString()
+  }).eq('id', guestId);
+  if (error) { alert('실패: ' + error.message); return false; }
+  state.editingGuestId = null;
+  await loadAll();
+  render();
+  return true;
+}
+
+async function actionRemoveGuest(guestId) {
+  if (!confirm('이 용병을 삭제할까요?')) return;
+  const guestKey = `g:${guestId}`;
+  // 짜여 있는 팀에서 같이 제거 (정합성)
+  const affected = state.matches.filter(m => {
+    if (!m.teams) return false;
+    const all = [...((m.teams.teams || []).flat()), ...(m.teams.bench || [])];
+    return all.includes(guestKey);
+  });
+  for (const m of affected) {
+    const data = JSON.parse(JSON.stringify(m.teams));
+    data.teams = (data.teams || []).map(t => t.filter(id => id !== guestKey));
+    data.bench = (data.bench || []).filter(id => id !== guestKey);
+    await sb.from('matches').update({ teams: data }).eq('id', m.id);
+  }
+  const { error } = await sb.from('match_guests').delete().eq('id', guestId);
   if (error) { alert('실패: ' + error.message); return; }
   await loadAll();
   render();
@@ -1911,9 +2049,11 @@ function getTeamWindowStatus(match) {
 
 function attendingMemberIds(matchId) {
   const memberSet = new Set(state.members.map(m => m.id));
-  return state.attendance
+  const memberIds = state.attendance
     .filter(a => a.match_id === matchId && a.vote === 'yes' && memberSet.has(a.member_id))
     .map(a => a.member_id);
+  const guestIds = guestsForMatch(matchId).map(g => `g:${g.id}`);
+  return [...memberIds, ...guestIds];
 }
 
 async function actionGenerateTeams(match, opts = {}) {
@@ -1974,8 +2114,16 @@ async function actionMoveTeamMember(match, memberId, targetIndex) {
 }
 
 function showMovePopup(match, memberId, fromIdx) {
-  const m = state.members.find(x => x.id === memberId);
-  if (!m || !match.teams) return;
+  let displayName;
+  if (typeof memberId === 'string' && memberId.startsWith('g:')) {
+    const g = state.guests.find(x => x.id === memberId.slice(2));
+    if (!g || !match.teams) return;
+    displayName = `${g.name} (용병)`;
+  } else {
+    const m = state.members.find(x => x.id === memberId);
+    if (!m || !match.teams) return;
+    displayName = m.name;
+  }
   const data = match.teams;
   const teamCount = (data.teams || []).length;
   const targets = [];
@@ -1991,7 +2139,7 @@ function showMovePopup(match, memberId, fromIdx) {
   popup.className = 'move-popup';
   popup.innerHTML = `
     <div class="move-popup-card" onclick="event.stopPropagation()">
-      <h3>${escapeHtml(m.name)} 이동</h3>
+      <h3>${escapeHtml(displayName)} 이동</h3>
       <div class="move-current">현재: ${fromLabel}</div>
       ${targets.map(t => `
         <button class="btn move-target" data-target="${t.idx}">
@@ -2068,12 +2216,33 @@ function renderTeamsSection(match) {
     `;
   }
 
-  const data = match.teams;
   const memberById = id => state.members.find(m => m.id === id);
   const myId = state.user?.id;
-  const totalCount = (data.teams || []).reduce((s,t) => s + t.length, 0) + (data.bench || []).length;
+  const isValidId = (id) => {
+    if (typeof id === 'string' && id.startsWith('g:')) {
+      return state.guests.some(g => g.id === id.slice(2));
+    }
+    return !!memberById(id);
+  };
+  const rawData = match.teams;
+  const data = {
+    ...rawData,
+    teams: (rawData.teams || []).map(t => t.filter(isValidId)),
+    bench: (rawData.bench || []).filter(isValidId)
+  };
+  const totalCount = data.teams.reduce((s,t) => s + t.length, 0) + data.bench.length;
 
   const renderChip = (id, ctx) => {
+    if (typeof id === 'string' && id.startsWith('g:')) {
+      const g = state.guests.find(x => x.id === id.slice(2));
+      if (!g) return '';
+      return `
+        <span class="team-member-chip is-guest">
+          ${escapeHtml(g.name)}<span class="guest-mark">용병</span>
+          ${isAdmin() ? `<button class="move-btn" data-team-move="${id}|${ctx}" title="다른 팀으로">▾</button>` : ''}
+        </span>
+      `;
+    }
     const m = memberById(id);
     if (!m) return '';
     const isMe = id === myId;
@@ -2185,7 +2354,9 @@ function render() {
 
 function renderOverview() {
   const match = nextMatch();
-  const matchAttending = match ? state.attendance.filter(a => a.match_id === match.id && a.vote === 'yes').length : 0;
+  const matchAttending = match
+    ? state.attendance.filter(a => a.match_id === match.id && a.vote === 'yes').length + guestsForMatch(match.id).length
+    : 0;
   const month = state.config.current_month;
   const fee = state.config.monthly_fee;
   const paid = state.members.filter(m => isPaid(m.id, month)).length;
@@ -2265,6 +2436,8 @@ function renderAttendance() {
     const v = getVote(match.id, m.id);
     counts[v]++;
   });
+  const guests = guestsForMatch(match.id);
+  counts.yes += guests.length;
 
   const isEditingNext = state.editingMatchId === match.id;
   document.getElementById('panel-attendance').innerHTML = `
@@ -2315,6 +2488,42 @@ function renderAttendance() {
         </div>
       `;
     }).join('')}
+
+    <div class="section-header" style="margin-top:20px;">
+      <div class="section-title">⚡ 용병 (${guests.length}명)</div>
+      <div class="section-meta">참석 자동 포함 · 누구나 추가/수정 가능</div>
+    </div>
+
+    ${guests.length === 0 ? `
+      <div class="empty-state" style="padding:14px;font-size:12px;">아직 등록된 용병이 없어요.</div>
+    ` : guests.map(g => {
+      const isEditingThis = state.editingGuestId === g.id;
+      return `
+        <div class="guest-row">
+          ${isEditingThis ? `
+            <input type="text" class="guest-edit-input" data-guest-edit-input="${g.id}" value="${escapeHtml(g.name)}" autocomplete="off" maxlength="30">
+            <div class="guest-row-actions">
+              <button class="btn btn-primary" data-guest-save="${g.id}">저장</button>
+              <button class="btn" data-guest-cancel-edit="${g.id}">취소</button>
+            </div>
+          ` : `
+            <div class="guest-row-info">
+              <div class="guest-name">${escapeHtml(g.name)}</div>
+              <div class="guest-meta">${g.added_by_name ? `${escapeHtml(g.added_by_name)} 추가` : '추가됨'}</div>
+            </div>
+            <div class="guest-row-actions">
+              <button class="btn" data-guest-edit="${g.id}">수정</button>
+              <button class="btn" data-guest-del="${g.id}">삭제</button>
+            </div>
+          `}
+        </div>
+      `;
+    }).join('')}
+
+    <div class="add-form" style="margin-top:8px;">
+      <input type="text" id="newGuestName" placeholder="용병 이름" autocomplete="off" maxlength="30">
+      <button class="btn btn-primary add-form-btn" id="confirmAddGuest">+ 용병 추가</button>
+    </div>
 
     ${isAdmin() ? `
       ${(() => {
@@ -2389,6 +2598,65 @@ function renderAttendance() {
       await actionUpdateMatch(id, title, date, time || null, location || null);
     });
   });
+
+  // 용병 핸들러
+  document.getElementById('confirmAddGuest')?.addEventListener('click', async () => {
+    const input = document.getElementById('newGuestName');
+    if (!input) return;
+    haptic();
+    await actionAddGuest(match.id, input.value);
+  });
+  document.getElementById('newGuestName')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      document.getElementById('confirmAddGuest')?.click();
+    }
+  });
+  document.querySelectorAll('[data-guest-edit]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      haptic();
+      state.editingGuestId = e.currentTarget.dataset.guestEdit;
+      render();
+      const input = document.querySelector(`[data-guest-edit-input="${state.editingGuestId}"]`);
+      input?.focus();
+      input?.select();
+    });
+  });
+  document.querySelectorAll('[data-guest-cancel-edit]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      haptic();
+      state.editingGuestId = null;
+      render();
+    });
+  });
+  document.querySelectorAll('[data-guest-save]').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      haptic();
+      const id = e.currentTarget.dataset.guestSave;
+      const input = document.querySelector(`[data-guest-edit-input="${id}"]`);
+      if (!input) return;
+      await actionUpdateGuest(id, input.value);
+    });
+  });
+  document.querySelectorAll('[data-guest-edit-input]').forEach(input => {
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const id = e.currentTarget.dataset.guestEditInput;
+        document.querySelector(`[data-guest-save="${id}"]`)?.click();
+      } else if (e.key === 'Escape') {
+        state.editingGuestId = null;
+        render();
+      }
+    });
+  });
+  document.querySelectorAll('[data-guest-del]').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      haptic();
+      await actionRemoveGuest(e.currentTarget.dataset.guestDel);
+    });
+  });
+
   if (isAdmin()) bindMatchAddForm();
 }
 
