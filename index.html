@@ -1574,11 +1574,23 @@ function isPaid(memberId, month) {
   return !!(p && p.paid_at);
 }
 function getAttendCount(memberId) {
-  // 오늘까지 끝난 경기 기준 "참석(yes)" 합계
-  const today = new Date().toISOString().slice(0, 10);
-  const pastIds = new Set(state.matches.filter(m => m.match_date <= today).map(m => m.id));
+  // "경기 끝난 후" 기준으로 참석(yes) 합산
+  //   - 시간 설정된 경기: 시작 + 2시간 이후
+  //   - 시간 미설정 경기: 다음 날(자정)부터
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  const finishedIds = new Set();
+  for (const m of state.matches) {
+    const start = getMatchStartTime(m);
+    if (start) {
+      const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+      if (now >= end) finishedIds.add(m.id);
+    } else if (m.match_date < todayStr) {
+      finishedIds.add(m.id);
+    }
+  }
   return state.attendance.filter(a =>
-    a.member_id === memberId && a.vote === 'yes' && pastIds.has(a.match_id)
+    a.member_id === memberId && a.vote === 'yes' && finishedIds.has(a.match_id)
   ).length;
 }
 
