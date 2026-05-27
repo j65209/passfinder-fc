@@ -785,6 +785,116 @@
     vertical-align: middle;
     white-space: nowrap;
   }
+
+  /* MEMBER PROFILE BADGES */
+  .profile-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .profile-badge {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 9px;
+    border-radius: 14px;
+    font-family: var(--font-body);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    min-height: 26px;
+    line-height: 1.2;
+  }
+  .profile-badge:active { transform: scale(0.96); }
+  .profile-badge.unset {
+    color: var(--text-dim);
+    border-style: dashed;
+  }
+
+  /* PROFILE MODAL */
+  .profile-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.62);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 200;
+    padding: 16px;
+  }
+  .profile-modal-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px 18px 16px;
+    width: 100%;
+    max-width: 480px;
+    max-height: 88vh;
+    overflow-y: auto;
+  }
+  .profile-modal-card h3 {
+    font-size: 17px;
+    font-weight: 800;
+    margin-bottom: 16px;
+  }
+  .profile-section { margin-bottom: 16px; }
+  .profile-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    letter-spacing: 0.3px;
+  }
+  .profile-hint {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-weight: 500;
+    margin-left: 4px;
+  }
+  .seg-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .seg-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 14px;
+    border-radius: 8px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    flex: 1 1 auto;
+    min-height: 40px;
+    min-width: 64px;
+  }
+  .seg-btn.active {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .seg-btn.seg-clear {
+    flex: 0 0 auto;
+    font-size: 11px;
+    color: var(--text-muted);
+    min-width: 56px;
+  }
+  .seg-btn.seg-clear.active {
+    background: var(--bg-elevated);
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+  .profile-modal-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .profile-modal-actions .btn { flex: 1; min-height: 44px; }
   /* DIVIDER */
   .divider {
     height: 1px;
@@ -1673,6 +1783,129 @@ async function actionPay(memberId, month, method) {
   if (error) { alert('실패: ' + error.message); return; }
   await loadAll();
   render();
+}
+
+// ========== MEMBER PROFILE (주발/레벨/포지션) ==========
+const FOOT_LABELS = { right: '오른발', left: '왼발', both: '양발' };
+const LEVEL_LABELS = { beginner: '초급', intermediate: '중급', advanced: '상급' };
+const POSITION_LABELS = { gk: '키퍼', def: '수비', fwd: '공격' };
+const FOOT_KEYS = ['right', 'left', 'both'];
+const LEVEL_KEYS = ['beginner', 'intermediate', 'advanced'];
+const POSITION_KEYS = ['gk', 'def', 'fwd'];
+
+function formatPositions(arr) {
+  if (!arr || arr.length === 0) return '';
+  return arr.map(p => POSITION_LABELS[p] || p).join('/');
+}
+
+async function actionUpdateMemberProfile(memberId, foot, level, positions) {
+  const { error } = await sb.rpc('update_member_profile', {
+    p_id: memberId,
+    p_foot: foot || null,
+    p_level: level || null,
+    p_positions: positions && positions.length > 0 ? positions : null
+  });
+  if (error) { alert('실패: ' + error.message); return false; }
+  await loadAll();
+  render();
+  return true;
+}
+
+function showProfileModal(memberId) {
+  const m = state.members.find(x => x.id === memberId);
+  if (!m) return;
+  let foot = m.dominant_foot || null;
+  let level = m.skill_level || null;
+  let positions = Array.isArray(m.preferred_positions) ? [...m.preferred_positions] : [];
+
+  const renderSegBtn = (val, label, current, group) => `
+    <button type="button" class="seg-btn ${current === val || (Array.isArray(current) && current.includes(val)) ? 'active' : ''}" data-seg-group="${group}" data-seg-val="${val}">${label}</button>
+  `;
+
+  const modal = document.createElement('div');
+  modal.className = 'profile-modal';
+  modal.innerHTML = `
+    <div class="profile-modal-card" onclick="event.stopPropagation()">
+      <h3>${escapeHtml(m.name)} 프로필</h3>
+
+      <div class="profile-section">
+        <label class="profile-label">주발</label>
+        <div class="seg-row" data-seg-radio="foot">
+          ${FOOT_KEYS.map(k => renderSegBtn(k, FOOT_LABELS[k], foot, 'foot')).join('')}
+          <button type="button" class="seg-btn seg-clear" data-seg-clear="foot">미설정</button>
+        </div>
+      </div>
+
+      <div class="profile-section">
+        <label class="profile-label">레벨</label>
+        <div class="seg-row" data-seg-radio="level">
+          ${LEVEL_KEYS.map(k => renderSegBtn(k, LEVEL_LABELS[k], level, 'level')).join('')}
+          <button type="button" class="seg-btn seg-clear" data-seg-clear="level">미설정</button>
+        </div>
+      </div>
+
+      <div class="profile-section">
+        <label class="profile-label">선호 포지션 <span class="profile-hint">중복 선택 가능</span></label>
+        <div class="seg-row" data-seg-multi="positions">
+          ${POSITION_KEYS.map(k => renderSegBtn(k, POSITION_LABELS[k], positions, 'positions')).join('')}
+        </div>
+      </div>
+
+      <div class="profile-modal-actions">
+        <button class="btn btn-primary" data-profile-save>저장</button>
+        <button class="btn" data-profile-cancel>취소</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) { modal.remove(); return; }
+  });
+
+  // 단일 선택 (foot / level): 같은 그룹의 다른 버튼 active 해제
+  modal.querySelectorAll('[data-seg-radio] .seg-btn:not(.seg-clear)').forEach(btn => {
+    btn.addEventListener('click', () => {
+      haptic();
+      const group = btn.closest('[data-seg-radio]').dataset.segRadio;
+      const val = btn.dataset.segVal;
+      modal.querySelectorAll(`[data-seg-radio="${group}"] .seg-btn`).forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (group === 'foot') foot = val;
+      if (group === 'level') level = val;
+    });
+  });
+  // 미설정 클리어
+  modal.querySelectorAll('[data-seg-clear]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      haptic();
+      const group = btn.dataset.segClear;
+      modal.querySelectorAll(`[data-seg-radio="${group}"] .seg-btn`).forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (group === 'foot') foot = null;
+      if (group === 'level') level = null;
+    });
+  });
+  // 다중 선택 (positions): 토글
+  modal.querySelectorAll('[data-seg-multi] .seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      haptic();
+      const val = btn.dataset.segVal;
+      const idx = positions.indexOf(val);
+      if (idx >= 0) { positions.splice(idx, 1); btn.classList.remove('active'); }
+      else { positions.push(val); btn.classList.add('active'); }
+    });
+  });
+
+  modal.querySelector('[data-profile-cancel]').addEventListener('click', () => {
+    haptic();
+    modal.remove();
+  });
+  modal.querySelector('[data-profile-save]').addEventListener('click', async () => {
+    haptic();
+    modal.remove();
+    await actionUpdateMemberProfile(memberId, foot, level, positions);
+  });
 }
 
 // ========== GUEST (용병) ACTIONS ==========
@@ -2818,11 +3051,21 @@ function renderMembers() {
 
     ${state.members.length === 0 ? `
       <div class="empty-state">${isAdmin() ? '아직 가입한 팀원이 없어요. 사이트 링크를 공유하면 본인이 직접 가입할 수 있어요.' : '아직 팀원이 등록되지 않았어요'}</div>
-    ` : state.members.map(m => `
+    ` : state.members.map(m => {
+      const footLabel = m.dominant_foot ? FOOT_LABELS[m.dominant_foot] : '미설정';
+      const levelLabel = m.skill_level ? LEVEL_LABELS[m.skill_level] : '미설정';
+      const posLabel = formatPositions(m.preferred_positions) || '미설정';
+      const isUnset = (v) => v === '미설정';
+      return `
       <div class="row">
         <div class="row-left">
           <div class="member-info">
             <div class="name">${escapeHtml(m.name)}${state.user?.id === m.id ? ' <span style="color:var(--accent);font-size:11px;">(나)</span>' : ''}${m.phone ? ` <span style="color:var(--text-muted);font-size:13px;font-weight:400;margin-left:6px;">${formatPhone(m.phone)}</span>` : ''} <span class="attend-badge">⚽ ${getAttendCount(m.id)}회</span></div>
+            <div class="profile-badges">
+              <button class="profile-badge ${isUnset(footLabel) ? 'unset' : ''}" data-profile-edit="${m.id}">🦶 ${footLabel}</button>
+              <button class="profile-badge ${isUnset(levelLabel) ? 'unset' : ''}" data-profile-edit="${m.id}">📊 ${levelLabel}</button>
+              <button class="profile-badge ${isUnset(posLabel) ? 'unset' : ''}" data-profile-edit="${m.id}">🎯 ${escapeHtml(posLabel)}</button>
+            </div>
             <div class="meta">${m.joined || ''} 가입</div>
           </div>
         </div>
@@ -2833,7 +3076,8 @@ function renderMembers() {
           </div>
         ` : ''}
       </div>
-    `).join('')}
+    `;
+    }).join('')}
 
     <div class="section-header" style="margin-top:24px;">
       <div class="section-title">팀원 후보 ${state.candidates.length}명 <span style="font-size:12px;color:var(--text-muted);font-weight:400;">(추후 진행예정)</span></div>
@@ -2866,6 +3110,14 @@ function renderMembers() {
       </div>
     ` : ''}
   `;
+
+  // 프로필 수정은 누구나 가능 — admin 체크 전에 바인딩
+  document.querySelectorAll('[data-profile-edit]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      haptic();
+      showProfileModal(e.currentTarget.dataset.profileEdit);
+    });
+  });
 
   if (!isAdmin()) return;
 
