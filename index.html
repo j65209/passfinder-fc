@@ -772,6 +772,19 @@
     letter-spacing: 0.5px;
     vertical-align: middle;
   }
+  .attend-badge {
+    display: inline-block;
+    font-size: 11px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    padding: 2px 7px;
+    border-radius: 10px;
+    margin-left: 6px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
   /* DIVIDER */
   .divider {
     height: 1px;
@@ -1559,6 +1572,14 @@ function getPayment(memberId, month) {
 function isPaid(memberId, month) {
   const p = getPayment(memberId, month);
   return !!(p && p.paid_at);
+}
+function getAttendCount(memberId) {
+  // 오늘까지 끝난 경기 기준 "참석(yes)" 합계
+  const today = new Date().toISOString().slice(0, 10);
+  const pastIds = new Set(state.matches.filter(m => m.match_date <= today).map(m => m.id));
+  return state.attendance.filter(a =>
+    a.member_id === memberId && a.vote === 'yes' && pastIds.has(a.match_id)
+  ).length;
 }
 
 // ========== ACTIONS ==========
@@ -2789,7 +2810,7 @@ function renderMembers() {
       <div class="row">
         <div class="row-left">
           <div class="member-info">
-            <div class="name">${escapeHtml(m.name)}${state.user?.id === m.id ? ' <span style="color:var(--accent);font-size:11px;">(나)</span>' : ''}${m.phone ? ` <span style="color:var(--text-muted);font-size:13px;font-weight:400;margin-left:6px;">${formatPhone(m.phone)}</span>` : ''}</div>
+            <div class="name">${escapeHtml(m.name)}${state.user?.id === m.id ? ' <span style="color:var(--accent);font-size:11px;">(나)</span>' : ''}${m.phone ? ` <span style="color:var(--text-muted);font-size:13px;font-weight:400;margin-left:6px;">${formatPhone(m.phone)}</span>` : ''} <span class="attend-badge">⚽ ${getAttendCount(m.id)}회</span></div>
             <div class="meta">${m.joined || ''} 가입</div>
           </div>
         </div>
