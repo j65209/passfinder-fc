@@ -1472,6 +1472,16 @@
       <input type="tel" id="loginMemberPhone" placeholder="01012345678" inputmode="numeric" pattern="[0-9]{4,15}" maxlength="15" autocomplete="tel">
       <button class="login-btn" id="loginMemberBtn">입장하기</button>
       <p class="login-hint">처음이시면 자동으로 등록돼요.<br>같은 연락처로 다시 들어오면 자동 입장.</p>
+      <button class="login-link" id="toggleVisitorLogin">👀 방문자 핀으로 둘러보기 →</button>
+    </div>
+
+    <!-- 방문자 입장 (조회 전용) -->
+    <div class="login-mode" id="visitorMode">
+      <label>방문자 핀</label>
+      <input type="password" id="visitorPin" placeholder="••••" inputmode="numeric" maxlength="8" autocomplete="off">
+      <button class="login-btn" id="loginVisitorBtn">둘러보기</button>
+      <p class="login-hint">조회 전용으로 입장해요. 참석·회비·팀원 정보는 보기만 가능.</p>
+      <button class="login-link" id="toggleMemberFromVisitor">← 회원으로 돌아가기</button>
     </div>
 
     <!-- 운영자 로그인 -->
@@ -1571,6 +1581,7 @@ let state = {
 };
 
 function isAdmin() { return state.user?.role === 'admin'; }
+function isVisitor() { return state.user?.role === 'visitor'; }
 function getCurrentMonth() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
@@ -1610,6 +1621,15 @@ async function loginMember(name, phone) {
   return { ok: true };
 }
 
+// 방문자: 공용 핀(0000)으로 조회 전용 입장. 가입/기록 없음.
+const VISITOR_PIN = '0000';
+function loginVisitor(pin) {
+  if (pin !== VISITOR_PIN) return { ok: false, msg: '방문자 핀이 일치하지 않습니다.' };
+  state.user = { role: 'visitor', id: null, name: '방문자' };
+  localStorage.setItem('pf_visitor', '1');
+  return { ok: true };
+}
+
 async function checkSession() {
   // 1. 운영자 세션
   if (localStorage.getItem('pf_admin') === '1') {
@@ -1629,12 +1649,18 @@ async function checkSession() {
     } catch {}
     localStorage.removeItem('pf_member');
   }
+  // 3. 방문자 세션
+  if (localStorage.getItem('pf_visitor') === '1') {
+    state.user = { role: 'visitor', id: null, name: '방문자' };
+    return true;
+  }
   return false;
 }
 
 function logout() {
   localStorage.removeItem('pf_admin');
   localStorage.removeItem('pf_member');
+  localStorage.removeItem('pf_visitor');
   state.user = null;
   showLogin();
 }
@@ -1706,6 +1732,7 @@ function getAttendCount(memberId) {
 
 // ========== ACTIONS ==========
 async function actionVote(matchId, memberId, vote) {
+  if (isVisitor()) { alert('방문자는 조회만 가능해요.'); return; }
   if (state.user?.role === 'member' && state.user.id !== memberId) {
     alert('본인의 참석만 변경할 수 있어요.');
     return;
@@ -1799,6 +1826,7 @@ function formatPositions(arr) {
 }
 
 async function actionUpdateMemberProfile(memberId, foot, level, positions) {
+  if (isVisitor()) { alert('방문자는 조회만 가능해요.'); return false; }
   const { error } = await sb.rpc('update_member_profile', {
     p_id: memberId,
     p_foot: foot || null,
@@ -1915,6 +1943,7 @@ function guestsForMatch(matchId) {
 }
 
 async function actionAddGuest(matchId, name) {
+  if (isVisitor()) { alert('방문자는 조회만 가능해요.'); return false; }
   const trimmed = (name || '').trim();
   if (!trimmed) { alert('용병 이름을 입력하세요.'); return false; }
   if (trimmed.length > 30) { alert('이름은 30자 이내로 입력하세요.'); return false; }
@@ -1943,6 +1972,7 @@ async function actionAddGuest(matchId, name) {
 }
 
 async function actionUpdateGuest(guestId, name) {
+  if (isVisitor()) { alert('방문자는 조회만 가능해요.'); return false; }
   const trimmed = (name || '').trim();
   if (!trimmed) { alert('용병 이름을 입력하세요.'); return false; }
   if (trimmed.length > 30) { alert('이름은 30자 이내로 입력하세요.'); return false; }
@@ -1957,6 +1987,7 @@ async function actionUpdateGuest(guestId, name) {
 }
 
 async function actionRemoveGuest(guestId) {
+  if (isVisitor()) { alert('방문자는 조회만 가능해요.'); return; }
   if (!confirm('이 용병을 삭제할까요?')) return;
   const guestKey = `g:${guestId}`;
   // 짜여 있는 팀에서 같이 제거 (정합성)
@@ -2757,7 +2788,7 @@ function renderAttendance() {
 
     <div class="section-header" style="margin-top:20px;">
       <div class="section-title">⚡ 용병 (${guests.length}명)</div>
-      <div class="section-meta">참석 자동 포함 · 누구나 추가/수정 가능</div>
+      <div class="section-meta">참석 자동 포함 · ${isVisitor() ? '조회 전용' : '누구나 추가/수정 가능'}</div>
     </div>
 
     ${guests.length === 0 ? `
@@ -2777,10 +2808,12 @@ function renderAttendance() {
               <div class="guest-name">${escapeHtml(g.name)}</div>
               <div class="guest-meta">${g.added_by_name ? `${escapeHtml(g.added_by_name)} 추가` : '추가됨'}</div>
             </div>
+            ${!isVisitor() ? `
             <div class="guest-row-actions">
               <button class="btn" data-guest-edit="${g.id}">수정</button>
               <button class="btn" data-guest-del="${g.id}">삭제</button>
             </div>
+            ` : ''}
           `}
         </div>
       `;
@@ -3236,6 +3269,25 @@ document.getElementById('toggleMemberLogin').addEventListener('click', () => {
   document.getElementById('memberMode').classList.add('active');
 });
 
+document.getElementById('toggleVisitorLogin').addEventListener('click', () => {
+  document.querySelectorAll('.login-mode').forEach(el => el.classList.remove('active'));
+  document.getElementById('visitorMode').classList.add('active');
+  setTimeout(() => document.getElementById('visitorPin')?.focus(), 50);
+});
+document.getElementById('toggleMemberFromVisitor').addEventListener('click', () => {
+  document.querySelectorAll('.login-mode').forEach(el => el.classList.remove('active'));
+  document.getElementById('memberMode').classList.add('active');
+});
+document.getElementById('loginVisitorBtn').addEventListener('click', async () => {
+  const pin = document.getElementById('visitorPin').value;
+  if (!pin) { alert('방문자 핀을 입력하세요.'); return; }
+  const result = loginVisitor(pin);
+  if (!result.ok) { alert(result.msg); return; }
+  hideLogin();
+  await loadAll();
+  render();
+});
+
 document.getElementById('loginAdminBtn').addEventListener('click', async () => {
   const pin = document.getElementById('adminPin').value;
   if (!pin) { alert('PIN을 입력하세요.'); return; }
@@ -3259,11 +3311,12 @@ document.getElementById('setupAdminBtn').addEventListener('click', async () => {
 });
 
 // 엔터 키로 폼 제출
-['loginMemberPhone', 'adminPin', 'setupPinConfirm'].forEach(id => {
+['loginMemberPhone', 'adminPin', 'setupPinConfirm', 'visitorPin'].forEach(id => {
   document.getElementById(id)?.addEventListener('keydown', e => {
     if (e.key === 'Enter') {
       const btnId = id === 'loginMemberPhone' ? 'loginMemberBtn'
                   : id === 'adminPin' ? 'loginAdminBtn'
+                  : id === 'visitorPin' ? 'loginVisitorBtn'
                   : 'setupAdminBtn';
       document.getElementById(btnId).click();
     }
