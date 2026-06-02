@@ -90,16 +90,9 @@
     width: 48px;
     height: 48px;
     background: var(--accent);
-    color: var(--bg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: var(--font-display);
-    font-weight: 400;
-    font-size: 22px;
-    letter-spacing: -0.5px;
-    transform: rotate(-3deg);
-    border-radius: 4px;
+    border-radius: 8px;
+    object-fit: cover;
+    display: block;
   }
 
   .brand-text h1 {
@@ -1191,26 +1184,20 @@
     line-height: 1.6;
     text-align: center;
   }
-  .login-card .logo {
-    width: 64px;
-    height: 64px;
-    font-size: 28px;
-    margin: 0 auto 14px;
+  .login-card .login-logo {
+    display: block;
+    width: auto;
+    max-width: 220px;
+    height: auto;
+    margin: 0 auto 18px;
+    border-radius: 12px;
   }
   .login-card h2 {
     font-family: var(--font-display);
     font-weight: 400;
     font-size: 24px;
-    margin: 0 0 4px;
+    margin: 0 0 26px;
     letter-spacing: 0.5px;
-  }
-  .login-card .login-sub {
-    color: var(--text-muted);
-    font-size: 11px;
-    letter-spacing: 2px;
-    font-weight: 700;
-    text-transform: uppercase;
-    margin-bottom: 28px;
   }
   .login-mode {
     display: none;
@@ -1460,9 +1447,8 @@
 <div id="loginScreen" class="login-screen">
   <div class="login-card">
     <button class="admin-corner-btn" id="toggleAdminLogin" title="운영자 모드">⚙️</button>
-    <div class="logo">PF</div>
+    <img class="login-logo" src="logo-full.png" alt="PASSFINDER FUTSAL CLUB">
     <h2>패스파인더 FC</h2>
-    <div class="login-sub">PASSFINDER FC</div>
 
     <!-- 입장 / 자동 가입 -->
     <div class="login-mode active" id="memberMode">
@@ -1510,7 +1496,7 @@
 
   <header class="header">
     <div class="brand">
-      <div class="logo">PF</div>
+      <img class="logo" src="logo-mark.png" alt="패스파인더 FC">
       <div class="brand-text">
         <h1>패스파인더 FC</h1>
         <div class="sub">PASSFINDER FC · EST. 2023</div>
