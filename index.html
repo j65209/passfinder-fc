@@ -2421,7 +2421,7 @@ function showMovePopup(match, memberId, fromIdx) {
   const popup = document.createElement('div');
   popup.className = 'move-popup';
   popup.innerHTML = `
-    <div class="move-popup-card" onclick="event.stopPropagation()">
+    <div class="move-popup-card">
       <h3>${escapeHtml(displayName)} 이동</h3>
       <div class="move-current">현재: ${fromLabel}</div>
       ${targets.map(t => `
