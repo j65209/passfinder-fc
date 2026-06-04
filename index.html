@@ -1682,7 +1682,11 @@ async function loadAll() {
 
 function nextMatch() {
   const today = new Date().toISOString().slice(0, 10);
-  return state.matches.find(m => m.match_date >= today) || state.matches[state.matches.length - 1] || null;
+  return state.matches.find(m => m.match_date >= today) || null;
+}
+function nextMatches(limit = 2) {
+  const today = new Date().toISOString().slice(0, 10);
+  return state.matches.filter(m => m.match_date >= today).slice(0, limit);
 }
 function getVote(matchId, memberId) {
   const a = state.attendance.find(x => x.match_id === matchId && x.member_id === memberId);
@@ -2699,8 +2703,8 @@ function renderOverview() {
 }
 
 function renderAttendance() {
-  const match = nextMatch();
-  if (!match) {
+  const matches = nextMatches(2);
+  if (matches.length === 0) {
     document.getElementById('panel-attendance').innerHTML = `
       <div class="empty-state">예정된 경기가 없습니다.</div>
       ${isAdmin() ? `
@@ -2714,140 +2718,150 @@ function renderAttendance() {
     return;
   }
 
-  const counts = { yes: 0, no: 0, maybe: 0, none: 0 };
-  state.members.forEach(m => {
-    const v = getVote(match.id, m.id);
-    counts[v]++;
-  });
-  const guests = guestsForMatch(match.id);
-  counts.yes += guests.length;
+  const matchSections = matches.map((match, idx) => {
+    const counts = { yes: 0, no: 0, maybe: 0, none: 0 };
+    state.members.forEach(m => {
+      const v = getVote(match.id, m.id);
+      counts[v]++;
+    });
+    const guests = guestsForMatch(match.id);
+    counts.yes += guests.length;
+    const isEditingThis = state.editingMatchId === match.id;
+    const matchLabel = idx === 0 ? '다음 경기' : `${idx + 1}번째 경기`;
 
-  const isEditingNext = state.editingMatchId === match.id;
-  document.getElementById('panel-attendance').innerHTML = `
-    ${isEditingNext ? matchEditFormHTML(match) : `
-    <div class="match-card" style="margin-bottom: 16px;">
-      <div class="match-title">${escapeHtml(match.title)}</div>
-      <div class="match-meta">
-        <span>📅 ${match.match_date}${match.match_time ? ' · ' + match.match_time.slice(0,5) : ''}</span>
-        ${match.location ? `<span>📍 ${escapeHtml(match.location)}</span>` : ''}
+    return `
+      ${idx > 0 ? '<div style="height:28px;border-top:1px solid var(--border,#e5e7eb);margin:24px 0 0;"></div>' : ''}
+      <div class="section-header" style="${idx === 0 ? 'margin-top:0;' : ''}">
+        <div class="section-title">${matchLabel}</div>
       </div>
-      ${isAdmin() ? `
-        <div style="display:flex;gap:8px;margin-top:14px;">
-          <button class="btn" data-edit-match="${match.id}" style="flex:1;">경기 수정</button>
-          <button class="btn" data-remove-match="${match.id}" style="flex:1;">경기 삭제</button>
+      ${isEditingThis ? matchEditFormHTML(match) : `
+      <div class="match-card" style="margin-bottom: 16px;">
+        <div class="match-title">${escapeHtml(match.title)}</div>
+        <div class="match-meta">
+          <span>📅 ${match.match_date}${match.match_time ? ' · ' + match.match_time.slice(0,5) : ''}</span>
+          ${match.location ? `<span>📍 ${escapeHtml(match.location)}</span>` : ''}
         </div>
+        ${isAdmin() ? `
+          <div style="display:flex;gap:8px;margin-top:14px;">
+            <button class="btn" data-edit-match="${match.id}" style="flex:1;">경기 수정</button>
+            <button class="btn" data-remove-match="${match.id}" style="flex:1;">경기 삭제</button>
+          </div>
+        ` : ''}
+      </div>
+      `}
+
+      <div class="attendance-summary">
+        <div class="summary-pill yes"><div class="num">${counts.yes}</div><div class="lbl">참석</div></div>
+        <div class="summary-pill maybe"><div class="num">${counts.maybe}</div><div class="lbl">미정</div></div>
+        <div class="summary-pill no"><div class="num">${counts.no}</div><div class="lbl">불참</div></div>
+      </div>
+
+      <div class="section-header">
+        <div class="section-title">팀원 투표</div>
+        <div class="section-meta">${isAdmin() ? '운영자: 모두 변경 가능' : '본인만 변경 가능'}</div>
+      </div>
+
+      ${state.members.map(m => {
+        const vote = getVote(match.id, m.id);
+        const canEdit = isAdmin() || (state.user?.id === m.id);
+        const isMe = state.user?.id === m.id;
+        return `
+          <div class="attendance-row">
+            <div class="attendance-row-top">
+              <div class="member-info">
+                <div class="name">${escapeHtml(m.name)}${isMe ? ' <span style="color:var(--accent);font-size:11px;">(나)</span>' : ''}</div>
+                <div class="meta">${m.joined || ''} 가입</div>
+              </div>
+            </div>
+            <div class="attendance-row-buttons">
+              <button class="btn ${vote === 'yes' ? 'active-yes' : ''}" data-vote="${match.id}:${m.id}:yes" ${canEdit ? '' : 'disabled'}>참석</button>
+              <button class="btn ${vote === 'maybe' ? 'active-maybe' : ''}" data-vote="${match.id}:${m.id}:maybe" ${canEdit ? '' : 'disabled'}>미정</button>
+              <button class="btn ${vote === 'no' ? 'active-no' : ''}" data-vote="${match.id}:${m.id}:no" ${canEdit ? '' : 'disabled'}>불참</button>
+            </div>
+          </div>
+        `;
+      }).join('')}
+
+      <div class="section-header" style="margin-top:20px;">
+        <div class="section-title">⚡ 용병 (${guests.length}명)</div>
+        <div class="section-meta">참석 자동 포함 · ${isVisitor() ? '조회 전용' : '누구나 추가/수정 가능'}</div>
+      </div>
+
+      ${guests.length === 0 ? `
+        <div class="empty-state" style="padding:14px;font-size:12px;">아직 등록된 용병이 없어요.</div>
+      ` : guests.map(g => {
+        const isEditingThis = state.editingGuestId === g.id;
+        return `
+          <div class="guest-row">
+            ${isEditingThis ? `
+              <input type="text" class="guest-edit-input" data-guest-edit-input="${g.id}" value="${escapeHtml(g.name)}" autocomplete="off" maxlength="30">
+              <div class="guest-row-actions">
+                <button class="btn btn-primary" data-guest-save="${g.id}">저장</button>
+                <button class="btn" data-guest-cancel-edit="${g.id}">취소</button>
+              </div>
+            ` : `
+              <div class="guest-row-info">
+                <div class="guest-name">${escapeHtml(g.name)}</div>
+                <div class="guest-meta">${g.added_by_name ? `${escapeHtml(g.added_by_name)} 추가` : '추가됨'}</div>
+              </div>
+              ${!isVisitor() ? `
+              <div class="guest-row-actions">
+                <button class="btn" data-guest-edit="${g.id}">수정</button>
+                <button class="btn" data-guest-del="${g.id}">삭제</button>
+              </div>
+              ` : ''}
+            `}
+          </div>
+        `;
+      }).join('')}
+
+      <div class="add-form" style="margin-top:8px;">
+        <input type="text" data-guest-input="${match.id}" placeholder="용병 이름" autocomplete="off" maxlength="30">
+        <button class="btn btn-primary add-form-btn" data-guest-add="${match.id}">+ 용병 추가</button>
+      </div>
+    `;
+  }).join('');
+
+  const shownIds = new Set(matches.map(m => m.id));
+  const adminTrailer = isAdmin() ? (() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const upcoming = state.matches.filter(m => m.match_date >= today && !shownIds.has(m.id));
+    return `
+      ${upcoming.length > 0 ? `
+        <div class="section-header" style="margin-top:24px;">
+          <div class="section-title">예정된 다음 경기 (${upcoming.length}개)</div>
+          <div class="section-meta">운영자 전용</div>
+        </div>
+        ${upcoming.slice(0, 10).map(m => state.editingMatchId === m.id ? matchEditFormHTML(m) : `
+          <div class="upcoming-match-row">
+            <div>
+              <div class="um-info">${escapeHtml(m.title)}</div>
+              <div class="um-meta">📅 ${m.match_date}${m.match_time ? ' · ' + m.match_time.slice(0,5) : ''}${m.location ? ' · ' + escapeHtml(m.location) : ''}</div>
+            </div>
+            <div class="um-actions">
+              <button class="um-edit" data-edit-match="${m.id}">수정</button>
+              <button class="um-del" data-remove-match="${m.id}">삭제</button>
+            </div>
+          </div>
+        `).join('')}
+        ${upcoming.length > 10 ? `<p class="form-hint" style="text-align:center;margin-top:8px;">+ ${upcoming.length - 10}개 더</p>` : ''}
       ` : ''}
-    </div>
-    `}
-
-    <div class="attendance-summary">
-      <div class="summary-pill yes"><div class="num">${counts.yes}</div><div class="lbl">참석</div></div>
-      <div class="summary-pill maybe"><div class="num">${counts.maybe}</div><div class="lbl">미정</div></div>
-      <div class="summary-pill no"><div class="num">${counts.no}</div><div class="lbl">불참</div></div>
-    </div>
-
-    <div class="section-header">
-      <div class="section-title">팀원 투표</div>
-      <div class="section-meta">${isAdmin() ? '운영자: 모두 변경 가능' : '본인만 변경 가능'}</div>
-    </div>
-
-    ${state.members.map(m => {
-      const vote = getVote(match.id, m.id);
-      const canEdit = isAdmin() || (state.user?.id === m.id);
-      const isMe = state.user?.id === m.id;
-      return `
-        <div class="attendance-row">
-          <div class="attendance-row-top">
-            <div class="member-info">
-              <div class="name">${escapeHtml(m.name)}${isMe ? ' <span style="color:var(--accent);font-size:11px;">(나)</span>' : ''}</div>
-              <div class="meta">${m.joined || ''} 가입</div>
-            </div>
-          </div>
-          <div class="attendance-row-buttons">
-            <button class="btn ${vote === 'yes' ? 'active-yes' : ''}" data-vote="${m.id}:yes" ${canEdit ? '' : 'disabled'}>참석</button>
-            <button class="btn ${vote === 'maybe' ? 'active-maybe' : ''}" data-vote="${m.id}:maybe" ${canEdit ? '' : 'disabled'}>미정</button>
-            <button class="btn ${vote === 'no' ? 'active-no' : ''}" data-vote="${m.id}:no" ${canEdit ? '' : 'disabled'}>불참</button>
-          </div>
-        </div>
-      `;
-    }).join('')}
-
-    <div class="section-header" style="margin-top:20px;">
-      <div class="section-title">⚡ 용병 (${guests.length}명)</div>
-      <div class="section-meta">참석 자동 포함 · ${isVisitor() ? '조회 전용' : '누구나 추가/수정 가능'}</div>
-    </div>
-
-    ${guests.length === 0 ? `
-      <div class="empty-state" style="padding:14px;font-size:12px;">아직 등록된 용병이 없어요.</div>
-    ` : guests.map(g => {
-      const isEditingThis = state.editingGuestId === g.id;
-      return `
-        <div class="guest-row">
-          ${isEditingThis ? `
-            <input type="text" class="guest-edit-input" data-guest-edit-input="${g.id}" value="${escapeHtml(g.name)}" autocomplete="off" maxlength="30">
-            <div class="guest-row-actions">
-              <button class="btn btn-primary" data-guest-save="${g.id}">저장</button>
-              <button class="btn" data-guest-cancel-edit="${g.id}">취소</button>
-            </div>
-          ` : `
-            <div class="guest-row-info">
-              <div class="guest-name">${escapeHtml(g.name)}</div>
-              <div class="guest-meta">${g.added_by_name ? `${escapeHtml(g.added_by_name)} 추가` : '추가됨'}</div>
-            </div>
-            ${!isVisitor() ? `
-            <div class="guest-row-actions">
-              <button class="btn" data-guest-edit="${g.id}">수정</button>
-              <button class="btn" data-guest-del="${g.id}">삭제</button>
-            </div>
-            ` : ''}
-          `}
-        </div>
-      `;
-    }).join('')}
-
-    <div class="add-form" style="margin-top:8px;">
-      <input type="text" id="newGuestName" placeholder="용병 이름" autocomplete="off" maxlength="30">
-      <button class="btn btn-primary add-form-btn" id="confirmAddGuest">+ 용병 추가</button>
-    </div>
-
-    ${isAdmin() ? `
-      ${(() => {
-        const today = new Date().toISOString().slice(0, 10);
-        const upcoming = state.matches.filter(m => m.match_date >= today && m.id !== match.id);
-        return upcoming.length > 0 ? `
-          <div class="section-header">
-            <div class="section-title">예정된 다음 경기 (${upcoming.length}개)</div>
-            <div class="section-meta">운영자 전용</div>
-          </div>
-          ${upcoming.slice(0, 10).map(m => state.editingMatchId === m.id ? matchEditFormHTML(m) : `
-            <div class="upcoming-match-row">
-              <div>
-                <div class="um-info">${escapeHtml(m.title)}</div>
-                <div class="um-meta">📅 ${m.match_date}${m.match_time ? ' · ' + m.match_time.slice(0,5) : ''}${m.location ? ' · ' + escapeHtml(m.location) : ''}</div>
-              </div>
-              <div class="um-actions">
-                <button class="um-edit" data-edit-match="${m.id}">수정</button>
-                <button class="um-del" data-remove-match="${m.id}">삭제</button>
-              </div>
-            </div>
-          `).join('')}
-          ${upcoming.length > 10 ? `<p class="form-hint" style="text-align:center;margin-top:8px;">+ ${upcoming.length - 10}개 더</p>` : ''}
-        ` : '';
-      })()}
 
       <div class="section-header" style="margin-top:24px;">
         <div class="section-title">+ 새 경기 추가</div>
       </div>
       ${matchAddFormHTML()}
-    ` : ''}
-  `;
+    `;
+  })() : '';
+
+  document.getElementById('panel-attendance').innerHTML = matchSections + adminTrailer;
 
   document.querySelectorAll('[data-vote]').forEach(btn => {
     btn.addEventListener('click', async () => {
       if (btn.disabled) return;
       haptic();
-      const [memberId, vote] = btn.dataset.vote.split(':');
-      await actionVote(match.id, memberId, vote);
+      const [matchId, memberId, vote] = btn.dataset.vote.split(':');
+      await actionVote(matchId, memberId, vote);
     });
   });
   document.querySelectorAll('[data-remove-match]').forEach(btn => {
@@ -2885,17 +2899,23 @@ function renderAttendance() {
   });
 
   // 용병 핸들러
-  document.getElementById('confirmAddGuest')?.addEventListener('click', async () => {
-    const input = document.getElementById('newGuestName');
-    if (!input) return;
-    haptic();
-    await actionAddGuest(match.id, input.value);
+  document.querySelectorAll('[data-guest-add]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const matchId = btn.dataset.guestAdd;
+      const input = document.querySelector(`[data-guest-input="${matchId}"]`);
+      if (!input) return;
+      haptic();
+      await actionAddGuest(matchId, input.value);
+    });
   });
-  document.getElementById('newGuestName')?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      document.getElementById('confirmAddGuest')?.click();
-    }
+  document.querySelectorAll('[data-guest-input]').forEach(input => {
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const matchId = e.currentTarget.dataset.guestInput;
+        document.querySelector(`[data-guest-add="${matchId}"]`)?.click();
+      }
+    });
   });
   document.querySelectorAll('[data-guest-edit]').forEach(btn => {
     btn.addEventListener('click', e => {
