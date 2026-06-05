@@ -1503,6 +1503,81 @@
     margin-top: 10px;
   }
   .ec-actions .btn { flex: 1; }
+  .usage-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .usage-table th, .usage-table td {
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    text-align: left;
+  }
+  .usage-table th {
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+  }
+  .usage-table td { color: var(--text); word-break: break-word; }
+  .usage-table th.amt, .usage-table td.amt {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .usage-table th.date, .usage-table td.date {
+    color: var(--text-muted);
+    white-space: nowrap;
+    text-align: right;
+    width: 56px;
+  }
+  .usage-table th.act, .usage-table td.act { width: 26px; text-align: center; padding-left: 0; padding-right: 0; }
+  .usage-table .del-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 4px 6px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .usage-table .del-btn:active { color: #ff5b5b; }
+  .usage-total {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 6px 4px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .usage-add-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border);
+  }
+  .usage-add-form input {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 10px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: var(--font-body);
+    box-sizing: border-box;
+    width: 100%;
+  }
+  .usage-add-form input:focus { outline: none; border-color: var(--accent); }
+  .usage-add-row2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 6px;
+  }
+  .usage-add-row2 .btn { white-space: nowrap; padding: 9px 14px; }
 </style>
 </head>
 <body>
@@ -1626,12 +1701,11 @@ let state = {
     bank_account_number: '',
     bank_account_holder: '',
     fee_notice: '',
-    fee_usage: ''
+    fee_usage: []
   },
   editingMatchId: null,
   editingGuestId: null,
-  editingNotice: false,
-  editingUsage: false
+  editingNotice: false
 };
 
 function isAdmin() { return state.user?.role === 'admin'; }
@@ -1744,7 +1818,12 @@ async function loadAll() {
       else if (c.key === 'bank_account_number') state.config.bank_account_number = c.value;
       else if (c.key === 'bank_account_holder') state.config.bank_account_holder = c.value;
       else if (c.key === 'fee_notice') state.config.fee_notice = c.value;
-      else if (c.key === 'fee_usage') state.config.fee_usage = c.value;
+      else if (c.key === 'fee_usage') {
+        try {
+          const parsed = JSON.parse(c.value || '[]');
+          state.config.fee_usage = Array.isArray(parsed) ? parsed : [];
+        } catch { state.config.fee_usage = []; }
+      }
     });
   }
   if (!state.config.current_month) state.config.current_month = getCurrentMonth();
@@ -2257,6 +2336,54 @@ async function actionSaveConfig(configKey, inputId, editingFlag) {
   state.config[configKey] = next;
   state[editingFlag] = false;
   render();
+}
+
+async function saveUsageEntries(entries) {
+  const { error } = await sb.from('app_config').upsert(
+    { key: 'fee_usage', value: JSON.stringify(entries), updated_at: new Date().toISOString() },
+    { onConflict: 'key' }
+  );
+  if (error) { alert('저장 실패: ' + error.message); return false; }
+  state.config.fee_usage = entries;
+  render();
+  return true;
+}
+
+async function actionAddUsageEntry() {
+  if (!isAdmin()) return;
+  const dateEl = document.getElementById('usageDateInput');
+  const contentEl = document.getElementById('usageContentInput');
+  const amountEl = document.getElementById('usageAmountInput');
+  if (!dateEl || !contentEl || !amountEl) return;
+  const date = dateEl.value;
+  const content = contentEl.value.trim();
+  const amount = parseInt(String(amountEl.value).replace(/[,\s]/g, ''), 10);
+  if (!date) { alert('작성일자를 선택해주세요.'); dateEl.focus(); return; }
+  if (!content) { alert('내용을 입력해주세요.'); contentEl.focus(); return; }
+  if (!Number.isFinite(amount) || amount < 0) { alert('금액을 정확히 입력해주세요.'); amountEl.focus(); return; }
+  const entry = {
+    id: (crypto.randomUUID ? crypto.randomUUID() : `u-${Date.now()}-${Math.random().toString(36).slice(2,8)}`),
+    date,
+    content,
+    amount,
+    created_at: new Date().toISOString()
+  };
+  const entries = [...(Array.isArray(state.config.fee_usage) ? state.config.fee_usage : []), entry];
+  const ok = await saveUsageEntries(entries);
+  if (ok) {
+    // 추가 후 폼 초기화 (새 렌더에서 input들은 새로 생성되지만 안전망)
+    const newContent = document.getElementById('usageContentInput');
+    if (newContent) newContent.focus();
+  }
+}
+
+async function actionDeleteUsageEntry(id) {
+  if (!isAdmin()) return;
+  const target = (state.config.fee_usage || []).find(e => e.id === id);
+  if (!target) return;
+  if (!confirm(`'${target.content}' 항목을 삭제할까요?`)) return;
+  const entries = state.config.fee_usage.filter(e => e.id !== id);
+  await saveUsageEntries(entries);
 }
 
 async function actionPayAll() {
@@ -3084,15 +3211,59 @@ function renderFees() {
       <div class="progress-bar"><div class="progress-fill" style="width: ${percent}%"></div></div>
     </div>
 
-    ${renderEditableCard({
-      icon: '💸', title: '회비 사용내역',
-      configKey: 'fee_usage', editingFlag: 'editingUsage',
-      inputId: 'feeUsageInput', editId: 'qbEditUsage',
-      saveId: 'qbSaveUsage', cancelId: 'qbCancelUsage',
-      addLabel: '+ 내역 작성',
-      placeholder: '예) 6/3 풋살장 대관 90,000원\n6/3 음료 35,000원',
-      emptyMsg: '아직 작성된 사용내역이 없어요.'
-    })}
+    ${(() => {
+      const entries = Array.isArray(state.config.fee_usage) ? state.config.fee_usage : [];
+      if (entries.length === 0 && !isAdmin()) return '';
+      const total = entries.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+      const sorted = [...entries].sort((a, b) => {
+        if (a.date !== b.date) return (b.date || '').localeCompare(a.date || '');
+        return (b.created_at || '').localeCompare(a.created_at || '');
+      });
+      const today = new Date().toISOString().slice(0, 10);
+      return `
+        <div class="editable-card">
+          <div class="ec-head"><div class="ec-title">💸 회비 사용내역</div></div>
+          ${entries.length === 0 ? `
+            <div class="ec-empty">아직 작성된 사용내역이 없어요. 아래에서 추가하세요.</div>
+          ` : `
+            <table class="usage-table">
+              <thead>
+                <tr>
+                  <th>내용</th>
+                  <th class="amt">금액 (원)</th>
+                  <th class="date">일자</th>
+                  ${isAdmin() ? `<th class="act"></th>` : ''}
+                </tr>
+              </thead>
+              <tbody>
+                ${sorted.map(e => `
+                  <tr>
+                    <td>${escapeHtml(e.content || '')}</td>
+                    <td class="amt">${(Number(e.amount) || 0).toLocaleString()}</td>
+                    <td class="date">${(e.date || '').slice(5).replace('-', '/')}</td>
+                    ${isAdmin() ? `<td class="act"><button class="del-btn" data-usage-del="${escapeHtml(e.id)}" title="삭제">×</button></td>` : ''}
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <div class="usage-total">
+              <span>총 ${entries.length}건</span>
+              <span>${total.toLocaleString()}원</span>
+            </div>
+          `}
+          ${isAdmin() ? `
+            <div class="usage-add-form">
+              <input type="text" id="usageContentInput" placeholder="내용 (예: 풋살장 대관)" maxlength="60" autocomplete="off">
+              <div class="usage-add-row2">
+                <input type="date" id="usageDateInput" value="${today}">
+                <input type="number" id="usageAmountInput" placeholder="금액 (원)" inputmode="numeric" min="0" step="1000">
+                <button class="btn btn-primary" id="qbAddUsage">+ 추가</button>
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    })()}
 
     ${unpaidMembers.length > 0 ? `
       <div class="section-header"><div class="section-title">미납 (${unpaidMembers.length}명)</div></div>
@@ -3158,9 +3329,10 @@ function renderFees() {
   document.getElementById('qbEditNotice')?.addEventListener('click', () => { haptic(); actionStartEditConfig('editingNotice', 'feeNoticeInput'); });
   document.getElementById('qbSaveNotice')?.addEventListener('click', () => { haptic(); actionSaveConfig('fee_notice', 'feeNoticeInput', 'editingNotice'); });
   document.getElementById('qbCancelNotice')?.addEventListener('click', () => { haptic(); actionCancelEditConfig('editingNotice'); });
-  document.getElementById('qbEditUsage')?.addEventListener('click', () => { haptic(); actionStartEditConfig('editingUsage', 'feeUsageInput'); });
-  document.getElementById('qbSaveUsage')?.addEventListener('click', () => { haptic(); actionSaveConfig('fee_usage', 'feeUsageInput', 'editingUsage'); });
-  document.getElementById('qbCancelUsage')?.addEventListener('click', () => { haptic(); actionCancelEditConfig('editingUsage'); });
+  document.getElementById('qbAddUsage')?.addEventListener('click', () => { haptic(); actionAddUsageEntry(); });
+  document.querySelectorAll('[data-usage-del]').forEach(btn => {
+    btn.addEventListener('click', () => { haptic(); actionDeleteUsageEntry(btn.dataset.usageDel); });
+  });
   document.getElementById('qbSettings')?.addEventListener('click', () => { haptic(); openBankSettings(); });
 }
 
