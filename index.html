@@ -1439,26 +1439,26 @@
     align-items: center;
   }
   .bank-info-card strong { color: var(--text); font-weight: 700; }
-  .fee-notice-card {
+  .editable-card {
     background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 14px 16px;
     margin-bottom: 12px;
   }
-  .fnc-head {
+  .ec-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin-bottom: 8px;
   }
-  .fnc-title {
+  .ec-title {
     font-size: 12px;
     font-weight: 700;
     color: var(--text-muted);
     letter-spacing: 0.4px;
   }
-  .fnc-edit {
+  .ec-edit {
     background: transparent;
     border: none;
     color: var(--text-muted);
@@ -1469,20 +1469,20 @@
     font-family: var(--font-body);
     -webkit-tap-highlight-color: transparent;
   }
-  .fnc-edit:active { color: var(--text); }
-  .fnc-body {
+  .ec-edit:active { color: var(--text); }
+  .ec-body {
     font-size: 14px;
     color: var(--text);
     white-space: pre-wrap;
     line-height: 1.55;
     word-break: break-word;
   }
-  .fnc-empty {
+  .ec-empty {
     font-size: 13px;
     color: var(--text-muted);
     font-style: italic;
   }
-  .fnc-textarea {
+  .ec-textarea {
     width: 100%;
     min-height: 110px;
     background: var(--bg-card);
@@ -1496,13 +1496,13 @@
     resize: vertical;
     box-sizing: border-box;
   }
-  .fnc-textarea:focus { outline: 1px solid var(--accent); }
-  .fnc-actions {
+  .ec-textarea:focus { outline: 1px solid var(--accent); }
+  .ec-actions {
     display: flex;
     gap: 8px;
     margin-top: 10px;
   }
-  .fnc-actions .btn { flex: 1; }
+  .ec-actions .btn { flex: 1; }
 </style>
 </head>
 <body>
@@ -1625,11 +1625,13 @@ let state = {
     bank_name: '',
     bank_account_number: '',
     bank_account_holder: '',
-    fee_notice: ''
+    fee_notice: '',
+    fee_usage: ''
   },
   editingMatchId: null,
   editingGuestId: null,
-  editingNotice: false
+  editingNotice: false,
+  editingUsage: false
 };
 
 function isAdmin() { return state.user?.role === 'admin'; }
@@ -1742,6 +1744,7 @@ async function loadAll() {
       else if (c.key === 'bank_account_number') state.config.bank_account_number = c.value;
       else if (c.key === 'bank_account_holder') state.config.bank_account_holder = c.value;
       else if (c.key === 'fee_notice') state.config.fee_notice = c.value;
+      else if (c.key === 'fee_usage') state.config.fee_usage = c.value;
     });
   }
   if (!state.config.current_month) state.config.current_month = getCurrentMonth();
@@ -2197,33 +2200,62 @@ async function copyToClipboard(text) {
   }
 }
 
-function actionStartEditNotice() {
+// 운영자 전용 인라인 텍스트 편집 — 공지/사용내역에서 공통 사용
+function renderEditableCard({ icon, title, configKey, editingFlag, emptyMsg, inputId, editId, saveId, cancelId, placeholder, addLabel = '+ 작성' }) {
+  const value = state.config[configKey] || '';
+  if (state[editingFlag] && isAdmin()) {
+    return `
+      <div class="editable-card">
+        <div class="ec-head"><div class="ec-title">${icon} ${title}</div></div>
+        <textarea id="${inputId}" class="ec-textarea" placeholder="${escapeHtml(placeholder)}">${escapeHtml(value)}</textarea>
+        <div class="ec-actions">
+          <button class="btn" id="${cancelId}">취소</button>
+          <button class="btn btn-primary" id="${saveId}">저장</button>
+        </div>
+      </div>
+    `;
+  }
+  if (!value && !isAdmin()) return '';
+  return `
+    <div class="editable-card">
+      <div class="ec-head">
+        <div class="ec-title">${icon} ${title}</div>
+        ${isAdmin() ? `<button class="ec-edit" id="${editId}">${value ? '✏️ 편집' : addLabel}</button>` : ''}
+      </div>
+      ${value
+        ? `<div class="ec-body">${escapeHtml(value)}</div>`
+        : `<div class="ec-empty">${escapeHtml(emptyMsg)}</div>`}
+    </div>
+  `;
+}
+
+function actionStartEditConfig(editingFlag, inputId) {
   if (!isAdmin()) return;
-  state.editingNotice = true;
+  state[editingFlag] = true;
   render();
   setTimeout(() => {
-    const ta = document.getElementById('feeNoticeInput');
+    const ta = document.getElementById(inputId);
     if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
   }, 0);
 }
 
-function actionCancelEditNotice() {
-  state.editingNotice = false;
+function actionCancelEditConfig(editingFlag) {
+  state[editingFlag] = false;
   render();
 }
 
-async function actionSaveNotice() {
+async function actionSaveConfig(configKey, inputId, editingFlag) {
   if (!isAdmin()) return;
-  const ta = document.getElementById('feeNoticeInput');
+  const ta = document.getElementById(inputId);
   if (!ta) return;
   const next = ta.value.trim();
   const { error } = await sb.from('app_config').upsert(
-    { key: 'fee_notice', value: next, updated_at: new Date().toISOString() },
+    { key: configKey, value: next, updated_at: new Date().toISOString() },
     { onConflict: 'key' }
   );
   if (error) { alert('저장 실패: ' + error.message); return; }
-  state.config.fee_notice = next;
-  state.editingNotice = false;
+  state.config[configKey] = next;
+  state[editingFlag] = false;
   render();
 }
 
@@ -3014,33 +3046,15 @@ function renderFees() {
   document.getElementById('panel-fees').innerHTML = `
     ${!isAdmin() ? `<div class="info-banner"><strong>👀 조회 전용</strong>회비 입력은 운영자만 가능해요.</div>` : ''}
 
-    ${(() => {
-      const notice = state.config.fee_notice || '';
-      if (state.editingNotice && isAdmin()) {
-        return `
-          <div class="fee-notice-card">
-            <div class="fnc-head"><div class="fnc-title">📢 회비 공지</div></div>
-            <textarea id="feeNoticeInput" class="fnc-textarea" placeholder="회비 납부 안내, 마감일, 계좌번호 등 자유롭게 작성하세요.">${escapeHtml(notice)}</textarea>
-            <div class="fnc-actions">
-              <button class="btn" id="qbCancelNotice">취소</button>
-              <button class="btn btn-primary" id="qbSaveNotice">저장</button>
-            </div>
-          </div>
-        `;
-      }
-      if (!notice && !isAdmin()) return '';
-      return `
-        <div class="fee-notice-card">
-          <div class="fnc-head">
-            <div class="fnc-title">📢 회비 공지</div>
-            ${isAdmin() ? `<button class="fnc-edit" id="qbEditNotice">${notice ? '✏️ 편집' : '+ 공지 작성'}</button>` : ''}
-          </div>
-          ${notice
-            ? `<div class="fnc-body">${escapeHtml(notice)}</div>`
-            : `<div class="fnc-empty">아직 공지가 없어요. 편집 버튼으로 작성하세요.</div>`}
-        </div>
-      `;
-    })()}
+    ${renderEditableCard({
+      icon: '📢', title: '회비 공지',
+      configKey: 'fee_notice', editingFlag: 'editingNotice',
+      inputId: 'feeNoticeInput', editId: 'qbEditNotice',
+      saveId: 'qbSaveNotice', cancelId: 'qbCancelNotice',
+      addLabel: '+ 공지 작성',
+      placeholder: '회비 납부 안내, 마감일, 계좌번호 등 자유롭게 작성하세요.',
+      emptyMsg: '아직 공지가 없어요. 편집 버튼으로 작성하세요.'
+    })}
 
     ${isAdmin() ? `
       ${bankConfigured ? `
@@ -3064,6 +3078,16 @@ function renderFees() {
       </div>
       <div class="progress-bar"><div class="progress-fill" style="width: ${percent}%"></div></div>
     </div>
+
+    ${renderEditableCard({
+      icon: '💸', title: '회비 사용내역',
+      configKey: 'fee_usage', editingFlag: 'editingUsage',
+      inputId: 'feeUsageInput', editId: 'qbEditUsage',
+      saveId: 'qbSaveUsage', cancelId: 'qbCancelUsage',
+      addLabel: '+ 내역 작성',
+      placeholder: '예) 6/3 풋살장 대관 90,000원\n6/3 음료 35,000원',
+      emptyMsg: '아직 작성된 사용내역이 없어요.'
+    })}
 
     ${unpaidMembers.length > 0 ? `
       <div class="section-header"><div class="section-title">미납 (${unpaidMembers.length}명)</div></div>
@@ -3125,10 +3149,13 @@ function renderFees() {
     });
   });
 
-  // 운영자 회비 공지 / 모임통장 설정
-  document.getElementById('qbEditNotice')?.addEventListener('click', () => { haptic(); actionStartEditNotice(); });
-  document.getElementById('qbSaveNotice')?.addEventListener('click', () => { haptic(); actionSaveNotice(); });
-  document.getElementById('qbCancelNotice')?.addEventListener('click', () => { haptic(); actionCancelEditNotice(); });
+  // 운영자: 공지 / 사용내역 / 모임통장 설정
+  document.getElementById('qbEditNotice')?.addEventListener('click', () => { haptic(); actionStartEditConfig('editingNotice', 'feeNoticeInput'); });
+  document.getElementById('qbSaveNotice')?.addEventListener('click', () => { haptic(); actionSaveConfig('fee_notice', 'feeNoticeInput', 'editingNotice'); });
+  document.getElementById('qbCancelNotice')?.addEventListener('click', () => { haptic(); actionCancelEditConfig('editingNotice'); });
+  document.getElementById('qbEditUsage')?.addEventListener('click', () => { haptic(); actionStartEditConfig('editingUsage', 'feeUsageInput'); });
+  document.getElementById('qbSaveUsage')?.addEventListener('click', () => { haptic(); actionSaveConfig('fee_usage', 'feeUsageInput', 'editingUsage'); });
+  document.getElementById('qbCancelUsage')?.addEventListener('click', () => { haptic(); actionCancelEditConfig('editingUsage'); });
   document.getElementById('qbSettings')?.addEventListener('click', () => { haptic(); openBankSettings(); });
 }
 
