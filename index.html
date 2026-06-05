@@ -1439,6 +1439,70 @@
     align-items: center;
   }
   .bank-info-card strong { color: var(--text); font-weight: 700; }
+  .fee-notice-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  .fnc-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .fnc-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.4px;
+  }
+  .fnc-edit {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 6px;
+    font-family: var(--font-body);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .fnc-edit:active { color: var(--text); }
+  .fnc-body {
+    font-size: 14px;
+    color: var(--text);
+    white-space: pre-wrap;
+    line-height: 1.55;
+    word-break: break-word;
+  }
+  .fnc-empty {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+  .fnc-textarea {
+    width: 100%;
+    min-height: 110px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    font-family: var(--font-body);
+    resize: vertical;
+    box-sizing: border-box;
+  }
+  .fnc-textarea:focus { outline: 1px solid var(--accent); }
+  .fnc-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .fnc-actions .btn { flex: 1; }
 </style>
 </head>
 <body>
@@ -1560,10 +1624,12 @@ let state = {
     current_month: '',
     bank_name: '',
     bank_account_number: '',
-    bank_account_holder: ''
+    bank_account_holder: '',
+    fee_notice: ''
   },
   editingMatchId: null,
-  editingGuestId: null
+  editingGuestId: null,
+  editingNotice: false
 };
 
 function isAdmin() { return state.user?.role === 'admin'; }
@@ -1675,6 +1741,7 @@ async function loadAll() {
       else if (c.key === 'bank_name') state.config.bank_name = c.value;
       else if (c.key === 'bank_account_number') state.config.bank_account_number = c.value;
       else if (c.key === 'bank_account_holder') state.config.bank_account_holder = c.value;
+      else if (c.key === 'fee_notice') state.config.fee_notice = c.value;
     });
   }
   if (!state.config.current_month) state.config.current_month = getCurrentMonth();
@@ -2130,66 +2197,34 @@ async function copyToClipboard(text) {
   }
 }
 
-function buildUnpaidShareMessage() {
-  const month = state.config.current_month;
-  const fee = state.config.monthly_fee;
-  const unpaid = state.members.filter(m => !isPaid(m.id, month));
-  const lines = [
-    `🚨 패스파인더 FC 회비 안내 (${month})`,
-    '',
-    `미납 ${unpaid.length}명 · 1인 ${(fee/10000).toFixed(0)}만원`,
-    ...unpaid.map(m => `· ${m.name}`),
-    ''
-  ];
-  if (state.config.bank_account_number) {
-    lines.push(`💳 ${state.config.bank_name || '카카오뱅크'} ${state.config.bank_account_number}`);
-    if (state.config.bank_account_holder) lines.push(`예금주: ${state.config.bank_account_holder}`);
-  } else {
-    lines.push('💳 모임통장으로 입금 부탁드려요!');
-  }
-  return lines.join('\n');
+function actionStartEditNotice() {
+  if (!isAdmin()) return;
+  state.editingNotice = true;
+  render();
+  setTimeout(() => {
+    const ta = document.getElementById('feeNoticeInput');
+    if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+  }, 0);
 }
 
-async function actionShareUnpaid() {
-  const month = state.config.current_month;
-  const unpaid = state.members.filter(m => !isPaid(m.id, month));
-  if (unpaid.length === 0) { alert('🎉 미납자가 없어요!'); return; }
-
-  const text = buildUnpaidShareMessage();
-  if (navigator.share) {
-    try {
-      await navigator.share({ title: '패스파인더 FC 회비 안내', text });
-    } catch (e) {
-      if (e.name !== 'AbortError') {
-        const ok = await copyToClipboard(text);
-        alert(ok ? '공유 취소됨. 메시지를 클립보드에 복사했어요.' : '공유 실패. 다시 시도해주세요.');
-      }
-    }
-  } else {
-    const ok = await copyToClipboard(text);
-    alert(ok ? '메시지를 클립보드에 복사했어요.\n카톡에서 붙여넣기해주세요.' : '복사 실패. 다시 시도해주세요.');
-  }
+function actionCancelEditNotice() {
+  state.editingNotice = false;
+  render();
 }
 
-async function actionGoToBank() {
-  const accountNumber = state.config.bank_account_number;
-  if (accountNumber) {
-    const ok = await copyToClipboard(accountNumber);
-    if (ok) {
-      // iOS: kakaobank://, Android: market intent fallback
-      setTimeout(() => { window.location.href = 'kakaobank://'; }, 100);
-      alert(`계좌번호 복사됨: ${accountNumber}\n카카오뱅크 앱이 열려요.`);
-    } else {
-      alert(`계좌번호: ${accountNumber}\n복사 실패 — 직접 적어주세요.`);
-    }
-  } else {
-    if (confirm('모임통장 계좌번호가 아직 없어요.\n지금 설정할까요?')) {
-      openBankSettings();
-    } else {
-      // 그냥 카뱅 앱만 열기
-      window.location.href = 'kakaobank://';
-    }
-  }
+async function actionSaveNotice() {
+  if (!isAdmin()) return;
+  const ta = document.getElementById('feeNoticeInput');
+  if (!ta) return;
+  const next = ta.value.trim();
+  const { error } = await sb.from('app_config').upsert(
+    { key: 'fee_notice', value: next, updated_at: new Date().toISOString() },
+    { onConflict: 'key' }
+  );
+  if (error) { alert('저장 실패: ' + error.message); return; }
+  state.config.fee_notice = next;
+  state.editingNotice = false;
+  render();
 }
 
 async function actionPayAll() {
@@ -2974,24 +3009,40 @@ function renderFees() {
   const expected = state.members.length * fee;
   const percent = expected > 0 ? Math.round((collected / expected) * 100) : 0;
 
-  const unpaidCount = unpaidMembers.length;
   const bankConfigured = !!state.config.bank_account_number;
 
   document.getElementById('panel-fees').innerHTML = `
     ${!isAdmin() ? `<div class="info-banner"><strong>👀 조회 전용</strong>회비 입력은 운영자만 가능해요.</div>` : ''}
 
-    ${isAdmin() ? `
-      <div class="admin-quick-bar" style="grid-template-columns: 1fr 1fr;">
-        <button class="qb-btn qb-warning" id="qbShare" ${unpaidCount === 0 ? 'disabled' : ''}>
-          <span class="qb-emoji">📋</span>
-          미납자<br>카톡 공유
-        </button>
-        <button class="qb-btn" id="qbBank">
-          <span class="qb-emoji">🏦</span>
-          모임통장<br>열기
-        </button>
-      </div>
+    ${(() => {
+      const notice = state.config.fee_notice || '';
+      if (state.editingNotice && isAdmin()) {
+        return `
+          <div class="fee-notice-card">
+            <div class="fnc-head"><div class="fnc-title">📢 회비 공지</div></div>
+            <textarea id="feeNoticeInput" class="fnc-textarea" placeholder="회비 납부 안내, 마감일, 계좌번호 등 자유롭게 작성하세요.">${escapeHtml(notice)}</textarea>
+            <div class="fnc-actions">
+              <button class="btn" id="qbCancelNotice">취소</button>
+              <button class="btn btn-primary" id="qbSaveNotice">저장</button>
+            </div>
+          </div>
+        `;
+      }
+      if (!notice && !isAdmin()) return '';
+      return `
+        <div class="fee-notice-card">
+          <div class="fnc-head">
+            <div class="fnc-title">📢 회비 공지</div>
+            ${isAdmin() ? `<button class="fnc-edit" id="qbEditNotice">${notice ? '✏️ 편집' : '+ 공지 작성'}</button>` : ''}
+          </div>
+          ${notice
+            ? `<div class="fnc-body">${escapeHtml(notice)}</div>`
+            : `<div class="fnc-empty">아직 공지가 없어요. 편집 버튼으로 작성하세요.</div>`}
+        </div>
+      `;
+    })()}
 
+    ${isAdmin() ? `
       ${bankConfigured ? `
         <div class="bank-info-card">
           <div>💳 <strong>${escapeHtml(state.config.bank_name || '계좌')}</strong> ${escapeHtml(state.config.bank_account_number)}</div>
@@ -3074,9 +3125,10 @@ function renderFees() {
     });
   });
 
-  // 운영자 빠른가기 버튼
-  document.getElementById('qbShare')?.addEventListener('click', () => { haptic(); actionShareUnpaid(); });
-  document.getElementById('qbBank')?.addEventListener('click', () => { haptic(); actionGoToBank(); });
+  // 운영자 회비 공지 / 모임통장 설정
+  document.getElementById('qbEditNotice')?.addEventListener('click', () => { haptic(); actionStartEditNotice(); });
+  document.getElementById('qbSaveNotice')?.addEventListener('click', () => { haptic(); actionSaveNotice(); });
+  document.getElementById('qbCancelNotice')?.addEventListener('click', () => { haptic(); actionCancelEditNotice(); });
   document.getElementById('qbSettings')?.addEventListener('click', () => { haptic(); openBankSettings(); });
 }
 
