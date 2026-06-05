@@ -2828,7 +2828,12 @@ function renderAttendance() {
         <div class="section-meta">${isAdmin() ? '운영자: 모두 변경 가능' : '본인만 변경 가능'}</div>
       </div>
 
-      ${state.members.map(m => {
+      ${(() => {
+        const voteOrder = { maybe: 0, yes: 1, no: 2 };
+        return [...state.members].sort((a, b) =>
+          voteOrder[getVote(match.id, a.id)] - voteOrder[getVote(match.id, b.id)]
+        );
+      })().map(m => {
         const vote = getVote(match.id, m.id);
         const canEdit = isAdmin() || (state.user?.id === m.id);
         const isMe = state.user?.id === m.id;
