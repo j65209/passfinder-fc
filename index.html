@@ -996,8 +996,17 @@
     min-height: 160px;
   }
   .pending-vote-msg:focus { border-color: var(--warning); }
+  .pending-vote-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .pending-vote-reset {
+    flex: 0 0 auto;
+    padding: 13px 14px;
+    white-space: nowrap;
+  }
   .pending-vote-copy {
-    width: 100%;
+    flex: 1;
     padding: 13px;
     font-size: 14px;
   }
@@ -1992,7 +2001,8 @@ let state = {
   },
   editingMatchId: null,
   editingGuestId: null,
-  editingNotice: false
+  editingNotice: false,
+  pendingVoteDrafts: {}    // { [matchId]: 사용자가 수정한 카톡 메시지 (운영자 전용, 세션 한정) }
 };
 
 function isAdmin() { return state.user?.role === 'admin'; }
@@ -3183,6 +3193,27 @@ function renderOverview() {
   scheduleTeamRefresh();
 }
 
+function buildPendingVoteMessage(match, pendingMembers) {
+  const matchTime = match.match_time ? ' ' + match.match_time.slice(0, 5) : '';
+  const dateLine = match.match_date ? `📅 ${match.match_date}${matchTime}` : '';
+  const locLine = match.location ? `📍 ${match.location}` : '';
+  const url = location.origin + location.pathname;
+  const lines = [
+    '⚽ 패스파인더 FC 참석 투표 요청',
+    '',
+    match.title || '',
+    dateLine,
+    locLine,
+    '',
+    `아직 투표 안 하신 분 (${pendingMembers.length}명) 👇`,
+    pendingMembers.map(p => p.name).join(', '),
+    '',
+    '참석/불참 투표 부탁드려요 🙏',
+    `👉 ${url}`
+  ].filter(l => l !== null && l !== undefined);
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
 function renderAttendance() {
   const matches = nextMatches(2);
   if (matches.length === 0) {
@@ -3250,25 +3281,9 @@ function renderAttendance() {
             </div>
           `;
         }
-        const matchDate = match.match_date || '';
-        const matchTime = match.match_time ? ' ' + match.match_time.slice(0,5) : '';
-        const dateLine = matchDate ? `📅 ${matchDate}${matchTime}` : '';
-        const locLine = match.location ? `📍 ${match.location}` : '';
-        const url = location.origin + location.pathname;
-        const lines = [
-          '⚽ 패스파인더 FC 참석 투표 요청',
-          '',
-          match.title || '',
-          dateLine,
-          locLine,
-          '',
-          `아직 투표 안 하신 분 (${pending.length}명) 👇`,
-          pending.map(p => p.name).join(', '),
-          '',
-          '참석/불참 투표 부탁드려요 🙏',
-          `👉 ${url}`
-        ].filter(l => l !== null && l !== undefined);
-        const msg = lines.join('\n').replace(/\n{3,}/g, '\n\n');
+        const msg = (state.pendingVoteDrafts && state.pendingVoteDrafts[match.id] != null)
+          ? state.pendingVoteDrafts[match.id]
+          : buildPendingVoteMessage(match, pending);
         return `
           <div class="pending-vote-card">
             <div class="pending-vote-head">
@@ -3278,8 +3293,11 @@ function renderAttendance() {
             <div class="pending-vote-names">
               ${pending.map(p => `<span class="pending-vote-chip">${escapeHtml(p.name)}</span>`).join('')}
             </div>
-            <textarea class="pending-vote-msg" data-pending-msg="${match.id}" readonly rows="9">${escapeHtml(msg)}</textarea>
-            <button class="btn btn-primary pending-vote-copy" data-pending-copy="${match.id}">📋 메시지 복사 → 카톡에 붙여넣기</button>
+            <textarea class="pending-vote-msg" data-pending-msg="${match.id}" rows="10" spellcheck="false" autocomplete="off">${escapeHtml(msg)}</textarea>
+            <div class="pending-vote-actions">
+              <button class="btn pending-vote-reset" data-pending-reset="${match.id}" title="자동 작성으로 되돌리기">↺ 초기화</button>
+              <button class="btn btn-primary pending-vote-copy" data-pending-copy="${match.id}">📋 복사하기</button>
+            </div>
           </div>
         `;
       })() : ''}
@@ -3395,6 +3413,25 @@ function renderAttendance() {
       haptic();
       const [matchId, memberId, vote] = btn.dataset.vote.split(':');
       await actionVote(matchId, memberId, vote);
+    });
+  });
+  document.querySelectorAll('[data-pending-msg]').forEach(ta => {
+    ta.addEventListener('input', () => {
+      const id = ta.dataset.pendingMsg;
+      state.pendingVoteDrafts[id] = ta.value;
+    });
+  });
+  document.querySelectorAll('[data-pending-reset]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      haptic();
+      const id = btn.dataset.pendingReset;
+      const match = state.matches.find(m => m.id === id);
+      if (!match) return;
+      const pending = state.members.filter(m => getVote(id, m.id) === 'maybe');
+      const fresh = buildPendingVoteMessage(match, pending);
+      const ta = document.querySelector(`[data-pending-msg="${id}"]`);
+      if (ta) ta.value = fresh;
+      delete state.pendingVoteDrafts[id];
     });
   });
   document.querySelectorAll('[data-pending-copy]').forEach(btn => {
