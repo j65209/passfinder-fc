@@ -833,6 +833,17 @@
     font-weight: 800;
     margin-bottom: 16px;
   }
+  .profile-welcome {
+    background: var(--accent-dim);
+    border: 1px solid rgba(0,255,136,0.3);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+  .profile-welcome b { color: var(--accent); }
   .profile-section { margin-bottom: 16px; }
   .profile-label {
     display: block;
@@ -2002,7 +2013,8 @@ let state = {
   editingMatchId: null,
   editingGuestId: null,
   editingNotice: false,
-  pendingVoteDrafts: {}    // { [matchId]: 사용자가 수정한 카톡 메시지 (운영자 전용, 세션 한정) }
+  pendingVoteDrafts: {},   // { [matchId]: 사용자가 수정한 카톡 메시지 (운영자 전용, 세션 한정) }
+  unpaidFeeDrafts: {}      // { [month]: 사용자가 수정한 회비 미납 카톡 메시지 (운영자 전용, 세션 한정) }
 };
 
 function isAdmin() { return state.user?.role === 'admin'; }
@@ -2275,7 +2287,24 @@ async function actionUpdateMemberProfile(memberId, foot, level, positions) {
   return true;
 }
 
-function showProfileModal(memberId) {
+function memberHasIncompleteProfile(m) {
+  if (!m) return false;
+  if (!m.dominant_foot) return true;
+  if (!m.skill_level) return true;
+  if (!Array.isArray(m.preferred_positions) || m.preferred_positions.length === 0) return true;
+  return false;
+}
+
+function promptProfileIfMissing() {
+  if (!state.user || state.user.role !== 'member' || !state.user.id) return;
+  if (document.querySelector('.profile-modal')) return;
+  const me = state.members.find(x => x.id === state.user.id);
+  if (memberHasIncompleteProfile(me)) {
+    showProfileModal(state.user.id, { firstTime: true });
+  }
+}
+
+function showProfileModal(memberId, opts) {
   const m = state.members.find(x => x.id === memberId);
   if (!m) return;
   let foot = m.dominant_foot || null;
@@ -2286,10 +2315,17 @@ function showProfileModal(memberId) {
     <button type="button" class="seg-btn ${current === val || (Array.isArray(current) && current.includes(val)) ? 'active' : ''}" data-seg-group="${group}" data-seg-val="${val}">${label}</button>
   `;
 
+  const isFirstTime = !!(opts && opts.firstTime);
   const modal = document.createElement('div');
   modal.className = 'profile-modal';
   modal.innerHTML = `
     <div class="profile-modal-card" onclick="event.stopPropagation()">
+      ${isFirstTime ? `
+        <div class="profile-welcome">
+          👋 <b>${escapeHtml(m.name)}</b>님, 환영합니다!<br>
+          팀 짤 때 쓰는 정보예요. 빠르게 골라주세요.
+        </div>
+      ` : ''}
       <h3>${escapeHtml(m.name)} 프로필</h3>
 
       <div class="profile-section">
@@ -2317,7 +2353,7 @@ function showProfileModal(memberId) {
 
       <div class="profile-modal-actions">
         <button class="btn btn-primary" data-profile-save>저장</button>
-        <button class="btn" data-profile-cancel>취소</button>
+        <button class="btn" data-profile-cancel>${isFirstTime ? '나중에' : '취소'}</button>
       </div>
     </div>
   `;
@@ -3193,6 +3229,25 @@ function renderOverview() {
   scheduleTeamRefresh();
 }
 
+function buildUnpaidFeeMessage(month, fee, unpaidMembers, config) {
+  const url = location.origin + location.pathname;
+  const bankLine = config.bank_account_number
+    ? `💳 ${config.bank_name || '계좌'} ${config.bank_account_number}${config.bank_account_holder ? ' (' + config.bank_account_holder + ')' : ''}`
+    : '';
+  return [
+    `💸 패스파인더 FC 회비 미납 안내 (${month})`,
+    '',
+    `월 회비: ${fee.toLocaleString()}원`,
+    ...(bankLine ? [bankLine] : []),
+    '',
+    `아직 미납인 분 (${unpaidMembers.length}명) 👇`,
+    unpaidMembers.map(p => p.name).join(', '),
+    '',
+    '이번 달 회비 부탁드려요 🙏',
+    `👉 ${url}`
+  ].join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
 function buildPendingVoteMessage(match, pendingMembers) {
   const matchTime = match.match_time ? ' ' + match.match_time.slice(0, 5) : '';
   const dateLine = match.match_date ? `📅 ${match.match_date}${matchTime}` : '';
@@ -3658,6 +3713,37 @@ function renderFees() {
       `;
     })()}
 
+    ${isAdmin() && unpaidMembers.length > 0 ? (() => {
+      const msg = (state.unpaidFeeDrafts && state.unpaidFeeDrafts[month] != null)
+        ? state.unpaidFeeDrafts[month]
+        : buildUnpaidFeeMessage(month, fee, unpaidMembers, state.config);
+      return `
+        <div class="pending-vote-card">
+          <div class="pending-vote-head">
+            <div class="pending-vote-title">📣 미납 인원 카톡 (${unpaidMembers.length}명)</div>
+            <div class="pending-vote-sub">운영자 전용</div>
+          </div>
+          <div class="pending-vote-names">
+            ${unpaidMembers.map(p => `<span class="pending-vote-chip">${escapeHtml(p.name)}</span>`).join('')}
+          </div>
+          <textarea class="pending-vote-msg" data-unpaid-msg="${month}" rows="11" spellcheck="false" autocomplete="off">${escapeHtml(msg)}</textarea>
+          <div class="pending-vote-actions">
+            <button class="btn pending-vote-reset" data-unpaid-reset="${month}" title="자동 작성으로 되돌리기">↺ 초기화</button>
+            <button class="btn btn-primary pending-vote-copy" data-unpaid-copy="${month}">📋 복사하기</button>
+          </div>
+        </div>
+      `;
+    })() : ''}
+    ${isAdmin() && unpaidMembers.length === 0 && paidMembers.length > 0 ? `
+      <div class="pending-vote-card pending-vote-card--done">
+        <div class="pending-vote-head">
+          <div class="pending-vote-title">📣 미납 인원 카톡</div>
+          <div class="pending-vote-sub">운영자 전용</div>
+        </div>
+        <div class="pending-vote-empty">✅ 전원 납부 완료!</div>
+      </div>
+    ` : ''}
+
     ${unpaidMembers.length > 0 ? `
       <div class="section-header"><div class="section-title">미납 (${unpaidMembers.length}명)</div></div>
       ${unpaidMembers.map(m => `
@@ -3715,6 +3801,45 @@ function renderFees() {
     btn.addEventListener('click', async () => {
       haptic();
       await actionUndoPayment(btn.dataset.undo, month);
+    });
+  });
+  document.querySelectorAll('[data-unpaid-msg]').forEach(ta => {
+    ta.addEventListener('input', () => {
+      const m = ta.dataset.unpaidMsg;
+      state.unpaidFeeDrafts[m] = ta.value;
+    });
+  });
+  document.querySelectorAll('[data-unpaid-reset]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      haptic();
+      const m = btn.dataset.unpaidReset;
+      const unpaid = state.members.filter(x => !isPaid(x.id, m));
+      const fresh = buildUnpaidFeeMessage(m, fee, unpaid, state.config);
+      const ta = document.querySelector(`[data-unpaid-msg="${m}"]`);
+      if (ta) ta.value = fresh;
+      delete state.unpaidFeeDrafts[m];
+    });
+  });
+  document.querySelectorAll('[data-unpaid-copy]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      haptic();
+      const m = btn.dataset.unpaidCopy;
+      const ta = document.querySelector(`[data-unpaid-msg="${m}"]`);
+      if (!ta) return;
+      const ok = await copyToClipboard(ta.value);
+      const original = btn.textContent;
+      if (ok) {
+        btn.classList.add('copied');
+        btn.textContent = '✅ 복사됨! 카톡에 붙여넣기';
+      } else {
+        ta.focus();
+        ta.select();
+        btn.textContent = '⚠️ 직접 복사해 주세요';
+      }
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.textContent = original;
+      }, 2200);
     });
   });
 
@@ -3912,6 +4037,7 @@ document.getElementById('loginMemberBtn').addEventListener('click', async () => 
   hideLogin();
   await loadAll();
   render();
+  promptProfileIfMissing();
 });
 
 document.getElementById('toggleAdminLogin').addEventListener('click', () => {
@@ -4078,6 +4204,7 @@ async function init() {
       await loadAll();
       hideLogin();
       render();
+      promptProfileIfMissing();
     } else {
       await showLogin();
     }
