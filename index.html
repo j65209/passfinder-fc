@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="패스파인더 FC">
 <meta name="theme-color" content="#0A0E1A">
 <title>패스파인더 FC</title>
+<link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon-180.png">
 <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon-152.png">
 <link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon-120.png">
@@ -923,6 +924,89 @@
     margin-bottom: 4px;
   }
 
+  /* === PENDING VOTE (admin-only KAKAO blast) === */
+  .pending-vote-card {
+    background: var(--warning-dim);
+    border: 1px solid rgba(255,181,71,0.35);
+    border-radius: 12px;
+    padding: 14px;
+    margin: 16px 0 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .pending-vote-card--done {
+    background: var(--accent-dim);
+    border-color: rgba(0,255,136,0.3);
+  }
+  .pending-vote-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .pending-vote-title {
+    font-size: 13px;
+    font-weight: 900;
+    color: var(--text);
+    letter-spacing: 0.2px;
+  }
+  .pending-vote-sub {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .pending-vote-empty {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    text-align: center;
+    padding: 4px 0;
+  }
+  .pending-vote-names {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .pending-vote-chip {
+    background: rgba(255,181,71,0.18);
+    color: var(--warning);
+    border: 1px solid rgba(255,181,71,0.35);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .pending-vote-msg {
+    width: 100%;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 13px;
+    line-height: 1.55;
+    resize: vertical;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+    min-height: 160px;
+  }
+  .pending-vote-msg:focus { border-color: var(--warning); }
+  .pending-vote-copy {
+    width: 100%;
+    padding: 13px;
+    font-size: 14px;
+  }
+  .pending-vote-copy.copied {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+  }
+
   /* UNPAID DOT */
   .unpaid-dot {
     width: 8px;
@@ -1269,6 +1353,147 @@
     padding: 14px 8px 0;
     font-family: var(--font-body);
     font-weight: 500;
+  }
+
+  /* === INSTALL TO HOME SCREEN === */
+  .install-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 22px;
+    width: 100%;
+    padding: 13px;
+    border-radius: 12px;
+    border: 1px dashed var(--border-strong);
+    background: var(--bg-elevated);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .install-btn:active { transform: scale(0.98); }
+  .install-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .install-btn[hidden] { display: none; }
+
+  .install-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.65);
+    z-index: 2000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 20px;
+    padding-top: calc(var(--safe-top) + 20px);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+    overflow-y: auto;
+  }
+  .install-modal[hidden] { display: none; }
+  .install-modal-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 24px 20px 22px;
+    width: 100%;
+    max-width: 420px;
+    position: relative;
+    animation: install-slide-up 0.22s ease;
+  }
+  @keyframes install-slide-up {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  @media (min-width: 600px) {
+    .install-modal { align-items: center; }
+  }
+  .install-modal-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 6px 10px;
+    font-family: var(--font-body);
+  }
+  .install-modal-card h3 {
+    font-size: 17px;
+    font-weight: 900;
+    margin: 0 0 8px;
+    color: var(--text);
+  }
+  .install-modal-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin: 0 0 16px;
+  }
+  .install-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  .install-tab {
+    flex: 1 0 auto;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .install-tab.active {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .install-panes { position: relative; }
+  .install-pane {
+    display: none;
+    background: var(--bg-elevated);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .install-pane.active { display: block; }
+  .install-pane ol {
+    margin: 0;
+    padding-left: 22px;
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.85;
+  }
+  .install-pane ol li { margin-bottom: 4px; }
+  .install-pane ol li b { color: var(--accent); font-weight: 800; }
+  .install-key {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    margin: 0 2px;
+  }
+  .install-tip {
+    margin: 10px 0 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.6;
   }
 
   /* User badge */
@@ -1625,6 +1850,68 @@
       <label>PIN 확인</label>
       <input type="password" id="setupPinConfirm" placeholder="••••" inputmode="numeric" maxlength="8" autocomplete="off">
       <button class="login-btn" id="setupAdminBtn">PIN 설정하고 시작</button>
+    </div>
+
+    <!-- 홈 화면 추가 (PWA install) -->
+    <button class="install-btn" id="installAppBtn" type="button" hidden>
+      📱 바탕화면에 앱 추가하기
+    </button>
+  </div>
+</div>
+
+<!-- 홈 화면 추가 안내 모달 -->
+<div class="install-modal" id="installModal" hidden>
+  <div class="install-modal-card">
+    <button class="install-modal-close" id="installModalClose" type="button" aria-label="닫기">×</button>
+    <h3>📱 바탕화면에 앱 추가</h3>
+    <p class="install-modal-sub">홈 화면 아이콘으로 빠르게 입장하세요.<br>사용 중인 브라우저를 골라주세요.</p>
+
+    <div class="install-tabs" id="installTabs">
+      <button class="install-tab" type="button" data-install-tab="ios-safari">iOS Safari</button>
+      <button class="install-tab" type="button" data-install-tab="ios-chrome">iOS Chrome</button>
+      <button class="install-tab" type="button" data-install-tab="android">Android</button>
+      <button class="install-tab" type="button" data-install-tab="samsung">삼성 인터넷</button>
+      <button class="install-tab" type="button" data-install-tab="desktop">데스크톱</button>
+    </div>
+
+    <div class="install-panes">
+      <div class="install-pane" data-install-pane="ios-safari">
+        <ol>
+          <li>화면 <b>하단(또는 상단)</b>의 <b>공유 버튼</b> <span class="install-key">⬆️</span> 탭</li>
+          <li>메뉴를 아래로 스크롤 → <b>"홈 화면에 추가"</b> 선택</li>
+          <li>우측 상단 <b>"추가"</b> 탭</li>
+        </ol>
+        <p class="install-tip">홈 화면에 패스파인더 FC 아이콘이 생깁니다.</p>
+      </div>
+      <div class="install-pane" data-install-pane="ios-chrome">
+        <ol>
+          <li>우측 하단(또는 상단) <b>공유 버튼</b> <span class="install-key">⬆️</span> 탭</li>
+          <li><b>"홈 화면에 추가"</b> 선택</li>
+        </ol>
+        <p class="install-tip">메뉴에 안 보이면 이 페이지를 <b>Safari로 열어서</b> 다시 시도해 주세요. (Safari가 가장 안정적입니다)</p>
+      </div>
+      <div class="install-pane" data-install-pane="android">
+        <ol>
+          <li>우측 상단 <b>⋮ 메뉴</b> 탭</li>
+          <li><b>"홈 화면에 추가"</b> 또는 <b>"앱 설치"</b> 선택</li>
+          <li><b>"설치"</b> 또는 <b>"추가"</b> 탭</li>
+        </ol>
+        <p class="install-tip">자동 설치 배너가 떴다면 그걸 그대로 눌러도 됩니다.</p>
+      </div>
+      <div class="install-pane" data-install-pane="samsung">
+        <ol>
+          <li>하단 <b>≡ 메뉴</b> 탭</li>
+          <li><b>"현재 페이지에 추가"</b> 또는 <b>"+ 페이지 추가"</b> 선택</li>
+          <li><b>"홈 화면"</b> 선택 → 추가</li>
+        </ol>
+      </div>
+      <div class="install-pane" data-install-pane="desktop">
+        <ol>
+          <li>주소창 우측의 <b>⊕ 설치 아이콘</b> 클릭<br>(또는 메뉴 → <b>"앱 설치"</b>)</li>
+          <li><b>"설치"</b> 클릭</li>
+        </ol>
+        <p class="install-tip">Chrome / Edge / Arc 등 Chromium 브라우저에서 작동합니다.</p>
+      </div>
     </div>
   </div>
 </div>
@@ -2950,6 +3237,53 @@ function renderAttendance() {
         <div class="summary-pill no"><div class="num">${counts.no}</div><div class="lbl">불참</div></div>
       </div>
 
+      ${isAdmin() ? (() => {
+        const pending = state.members.filter(m => getVote(match.id, m.id) === 'maybe');
+        if (pending.length === 0) {
+          return `
+            <div class="pending-vote-card pending-vote-card--done">
+              <div class="pending-vote-head">
+                <div class="pending-vote-title">📣 미정 인원 카톡</div>
+                <div class="pending-vote-sub">운영자 전용</div>
+              </div>
+              <div class="pending-vote-empty">✅ 전원 투표 완료!</div>
+            </div>
+          `;
+        }
+        const matchDate = match.match_date || '';
+        const matchTime = match.match_time ? ' ' + match.match_time.slice(0,5) : '';
+        const dateLine = matchDate ? `📅 ${matchDate}${matchTime}` : '';
+        const locLine = match.location ? `📍 ${match.location}` : '';
+        const url = location.origin + location.pathname;
+        const lines = [
+          '⚽ 패스파인더 FC 참석 투표 요청',
+          '',
+          match.title || '',
+          dateLine,
+          locLine,
+          '',
+          `아직 투표 안 하신 분 (${pending.length}명) 👇`,
+          pending.map(p => p.name).join(', '),
+          '',
+          '참석/불참 투표 부탁드려요 🙏',
+          `👉 ${url}`
+        ].filter(l => l !== null && l !== undefined);
+        const msg = lines.join('\n').replace(/\n{3,}/g, '\n\n');
+        return `
+          <div class="pending-vote-card">
+            <div class="pending-vote-head">
+              <div class="pending-vote-title">📣 미정 인원 카톡 (${pending.length}명)</div>
+              <div class="pending-vote-sub">운영자 전용</div>
+            </div>
+            <div class="pending-vote-names">
+              ${pending.map(p => `<span class="pending-vote-chip">${escapeHtml(p.name)}</span>`).join('')}
+            </div>
+            <textarea class="pending-vote-msg" data-pending-msg="${match.id}" readonly rows="9">${escapeHtml(msg)}</textarea>
+            <button class="btn btn-primary pending-vote-copy" data-pending-copy="${match.id}">📋 메시지 복사 → 카톡에 붙여넣기</button>
+          </div>
+        `;
+      })() : ''}
+
       <div class="section-header">
         <div class="section-title">팀원 투표</div>
         <div class="section-meta">${isAdmin() ? '운영자: 모두 변경 가능' : '본인만 변경 가능'}</div>
@@ -3061,6 +3395,28 @@ function renderAttendance() {
       haptic();
       const [matchId, memberId, vote] = btn.dataset.vote.split(':');
       await actionVote(matchId, memberId, vote);
+    });
+  });
+  document.querySelectorAll('[data-pending-copy]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      haptic();
+      const id = btn.dataset.pendingCopy;
+      const ta = document.querySelector(`[data-pending-msg="${id}"]`);
+      if (!ta) return;
+      const ok = await copyToClipboard(ta.value);
+      const original = btn.textContent;
+      if (ok) {
+        btn.classList.add('copied');
+        btn.textContent = '✅ 복사됨! 카톡에 붙여넣기';
+      } else {
+        ta.focus();
+        ta.select();
+        btn.textContent = '⚠️ 직접 복사해 주세요';
+      }
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.textContent = original;
+      }, 2200);
     });
   });
   document.querySelectorAll('[data-remove-match]').forEach(btn => {
@@ -3584,6 +3940,98 @@ document.getElementById('setupAdminBtn').addEventListener('click', async () => {
     }
   });
 });
+
+// ========== 홈 화면 추가 (PWA install) ==========
+(function setupInstallToHomeScreen() {
+  const btn = document.getElementById('installAppBtn');
+  const modal = document.getElementById('installModal');
+  const modalClose = document.getElementById('installModalClose');
+  const tabsRoot = document.getElementById('installTabs');
+  if (!btn || !modal || !tabsRoot) return;
+
+  const ua = navigator.userAgent || '';
+  const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  const isAndroid = /Android/i.test(ua);
+  const isIOSChrome = isIOS && /CriOS|FxiOS|EdgiOS/.test(ua);
+  const isIOSSafari = isIOS && !isIOSChrome;
+  const isSamsung = /SamsungBrowser/i.test(ua);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+                      || window.navigator.standalone === true;
+
+  // 이미 설치된 경우 — 버튼 자체를 안 보여준다
+  if (isStandalone) { btn.hidden = true; return; }
+  btn.hidden = false;
+
+  // beforeinstallprompt 캡쳐 (Android Chrome / Desktop Chromium)
+  let deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+  });
+
+  // 설치 완료되면 버튼 숨김
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    btn.hidden = true;
+    closeModal();
+  });
+
+  function pickDefaultTab() {
+    if (isIOSSafari) return 'ios-safari';
+    if (isIOSChrome) return 'ios-chrome';
+    if (isSamsung) return 'samsung';
+    if (isAndroid) return 'android';
+    return 'desktop';
+  }
+
+  function setActiveTab(name) {
+    tabsRoot.querySelectorAll('.install-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.installTab === name);
+    });
+    modal.querySelectorAll('.install-pane').forEach(p => {
+      p.classList.toggle('active', p.dataset.installPane === name);
+    });
+  }
+
+  function openModal() {
+    setActiveTab(pickDefaultTab());
+    modal.hidden = false;
+  }
+  function closeModal() {
+    modal.hidden = true;
+  }
+
+  tabsRoot.querySelectorAll('.install-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      haptic();
+      setActiveTab(tab.dataset.installTab);
+    });
+  });
+
+  modalClose.addEventListener('click', () => { haptic(); closeModal(); });
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  btn.addEventListener('click', async () => {
+    haptic();
+    // 우선 native prompt 시도 (Android Chrome / Desktop Chromium)
+    if (deferredPrompt) {
+      try {
+        deferredPrompt.prompt();
+        const choice = await deferredPrompt.userChoice;
+        deferredPrompt = null;
+        if (choice && choice.outcome === 'accepted') {
+          btn.hidden = true;
+          return;
+        }
+      } catch (err) {
+        // prompt 실패하면 안내 모달로 폴백
+      }
+    }
+    openModal();
+  });
+})();
 
 // ========== INIT ==========
 async function init() {
