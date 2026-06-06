@@ -1778,6 +1778,49 @@
     width: 56px;
   }
   .usage-table th.act, .usage-table td.act { width: 26px; text-align: center; padding-left: 0; padding-right: 0; }
+  .usage-table th.status, .usage-table td.status {
+    width: 64px;
+    text-align: center;
+    padding-left: 2px;
+    padding-right: 2px;
+    white-space: nowrap;
+  }
+  .usage-table .withdraw-btn {
+    background: var(--accent);
+    color: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    font-family: var(--font-body);
+    font-size: 11px;
+    font-weight: 800;
+    padding: 5px 8px;
+    cursor: pointer;
+    line-height: 1;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .usage-table .withdraw-btn:active { transform: scale(0.94); }
+  .usage-table .withdraw-btn.done {
+    background: transparent;
+    color: var(--text-muted);
+    border-color: var(--border-strong);
+    font-weight: 700;
+  }
+  .usage-table .withdraw-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    padding: 4px 6px;
+  }
+  .usage-table .withdraw-badge.pending { color: var(--warning); }
+  .usage-table tr.is-withdrawn td:not(.status):not(.act) {
+    color: var(--text-muted);
+  }
+  .usage-table tr.is-withdrawn td.amt {
+    text-decoration: line-through;
+    text-decoration-color: var(--text-dim);
+  }
   .usage-table .del-btn {
     background: transparent;
     border: none;
@@ -2717,6 +2760,20 @@ async function actionDeleteUsageEntry(id) {
   if (!confirm(`'${target.content}' 항목을 삭제할까요?`)) return;
   const entries = state.config.fee_usage.filter(e => e.id !== id);
   await saveUsageEntries(entries);
+}
+
+async function actionToggleUsageWithdrawn(id) {
+  if (!isAdmin()) return;
+  const entries = Array.isArray(state.config.fee_usage) ? state.config.fee_usage : [];
+  const target = entries.find(e => e.id === id);
+  if (!target) return;
+  if (target.withdrawn_at) {
+    if (!confirm(`'${target.content}' 출금완료 표시를 해제할까요?`)) return;
+  }
+  const updated = entries.map(e =>
+    e.id === id ? { ...e, withdrawn_at: e.withdrawn_at ? null : new Date().toISOString() } : e
+  );
+  await saveUsageEntries(updated);
 }
 
 async function actionPayAll() {
@@ -3680,18 +3737,29 @@ function renderFees() {
                   <th>내용</th>
                   <th class="amt">금액 (원)</th>
                   <th class="date">일자</th>
+                  <th class="status">출금</th>
                   ${isAdmin() ? `<th class="act"></th>` : ''}
                 </tr>
               </thead>
               <tbody>
-                ${sorted.map(e => `
-                  <tr>
-                    <td>${escapeHtml(e.content || '')}</td>
-                    <td class="amt">${(Number(e.amount) || 0).toLocaleString()}</td>
-                    <td class="date">${(e.date || '').slice(5).replace('-', '/')}</td>
-                    ${isAdmin() ? `<td class="act"><button class="del-btn" data-usage-del="${escapeHtml(e.id)}" title="삭제">×</button></td>` : ''}
-                  </tr>
-                `).join('')}
+                ${sorted.map(e => {
+                  const isWithdrawn = !!e.withdrawn_at;
+                  return `
+                    <tr class="${isWithdrawn ? 'is-withdrawn' : ''}">
+                      <td>${escapeHtml(e.content || '')}</td>
+                      <td class="amt">${(Number(e.amount) || 0).toLocaleString()}</td>
+                      <td class="date">${(e.date || '').slice(5).replace('-', '/')}</td>
+                      <td class="status">
+                        ${isAdmin() ? `
+                          <button class="withdraw-btn ${isWithdrawn ? 'done' : ''}" data-usage-withdraw="${escapeHtml(e.id)}" title="${isWithdrawn ? '출금완료 해제' : '출금완료로 표시'}">
+                            ${isWithdrawn ? '✓ 완료' : '출금완료'}
+                          </button>
+                        ` : (isWithdrawn ? `<span class="withdraw-badge">✓ 완료</span>` : `<span class="withdraw-badge pending">대기</span>`)}
+                      </td>
+                      ${isAdmin() ? `<td class="act"><button class="del-btn" data-usage-del="${escapeHtml(e.id)}" title="삭제">×</button></td>` : ''}
+                    </tr>
+                  `;
+                }).join('')}
               </tbody>
             </table>
             <div class="usage-total">
@@ -3850,6 +3918,9 @@ function renderFees() {
   document.getElementById('qbAddUsage')?.addEventListener('click', () => { haptic(); actionAddUsageEntry(); });
   document.querySelectorAll('[data-usage-del]').forEach(btn => {
     btn.addEventListener('click', () => { haptic(); actionDeleteUsageEntry(btn.dataset.usageDel); });
+  });
+  document.querySelectorAll('[data-usage-withdraw]').forEach(btn => {
+    btn.addEventListener('click', () => { haptic(); actionToggleUsageWithdrawn(btn.dataset.usageWithdraw); });
   });
   document.getElementById('qbSettings')?.addEventListener('click', () => { haptic(); openBankSettings(); });
 }
