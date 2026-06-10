@@ -1162,6 +1162,12 @@
     border: 1px dashed var(--border-strong);
   }
   .bench-card .team-card-name { color: var(--text-muted); }
+  .candidate-card {
+    border-left: none;
+    border: 1px dashed var(--warning, #f59e0b);
+    background: color-mix(in srgb, var(--warning, #f59e0b) 8%, transparent);
+  }
+  .candidate-card .team-card-name { color: var(--warning, #f59e0b); }
   .teams-actions {
     display: flex;
     gap: 8px;
@@ -2997,6 +3003,8 @@ function showMovePopup(match, memberId, fromIdx) {
   }
   const data = match.teams;
   const teamCount = (data.teams || []).length;
+  const placedSet = new Set([...(data.teams || []).flat(), ...(data.bench || [])]);
+  const candidatesCount = attendingMemberIds(match.id).filter(id => !placedSet.has(id)).length;
   const targets = [];
   for (let i = 0; i < teamCount; i++) {
     if (i === fromIdx) continue;
@@ -3005,7 +3013,10 @@ function showMovePopup(match, memberId, fromIdx) {
   if (fromIdx !== -1) {
     targets.push({ idx: -1, label: '🔄 교체 대기', count: (data.bench || []).length });
   }
-  const fromLabel = fromIdx === -1 ? '교체 대기' : (TEAM_LABELS[fromIdx] || `${fromIdx+1}팀`);
+  if (fromIdx !== -2) {
+    targets.push({ idx: -2, label: '🪑 후보', count: candidatesCount });
+  }
+  const fromLabel = fromIdx === -2 ? '후보' : (fromIdx === -1 ? '교체 대기' : (TEAM_LABELS[fromIdx] || `${fromIdx+1}팀`));
   const popup = document.createElement('div');
   popup.className = 'move-popup';
   popup.innerHTML = `
@@ -3101,7 +3112,9 @@ function renderTeamsSection(match) {
     teams: (rawData.teams || []).map(t => t.filter(isValidId)),
     bench: (rawData.bench || []).filter(isValidId)
   };
-  const totalCount = data.teams.reduce((s,t) => s + t.length, 0) + data.bench.length;
+  const placedSet = new Set([...data.teams.flat(), ...data.bench]);
+  const candidates = attendingMemberIds(match.id).filter(id => !placedSet.has(id));
+  const totalCount = data.teams.reduce((s,t) => s + t.length, 0) + data.bench.length + candidates.length;
 
   const renderChip = (id, ctx) => {
     if (typeof id === 'string' && id.startsWith('g:')) {
@@ -3150,6 +3163,17 @@ function renderTeamsSection(match) {
           </div>
           <div class="team-members-list">
             ${data.bench.map(id => renderChip(id, -1)).join('')}
+          </div>
+        </div>
+      ` : ''}
+      ${candidates.length > 0 ? `
+        <div class="team-card candidate-card">
+          <div class="team-card-header">
+            <div class="team-card-name">🪑 후보 (팀 짠 뒤 추가)</div>
+            <div class="team-card-count">${candidates.length}명</div>
+          </div>
+          <div class="team-members-list">
+            ${candidates.map(id => renderChip(id, -2)).join('')}
           </div>
         </div>
       ` : ''}
