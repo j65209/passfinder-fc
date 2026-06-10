@@ -2934,6 +2934,7 @@ function attendingMemberIds(matchId) {
 }
 
 async function actionGenerateTeams(match, opts = {}) {
+  if (!isAdmin()) { if (!opts.silent) alert('운영자만 가능해요.'); return; }
   if (TEAM_GEN_INFLIGHT.has(match.id)) return;
   const ids = attendingMemberIds(match.id);
   if (ids.length < 4) {
@@ -3003,8 +3004,6 @@ function showMovePopup(match, memberId, fromIdx) {
   }
   const data = match.teams;
   const teamCount = (data.teams || []).length;
-  const placedSet = new Set([...(data.teams || []).flat(), ...(data.bench || [])]);
-  const candidatesCount = attendingMemberIds(match.id).filter(id => !placedSet.has(id)).length;
   const targets = [];
   for (let i = 0; i < teamCount; i++) {
     if (i === fromIdx) continue;
@@ -3012,9 +3011,6 @@ function showMovePopup(match, memberId, fromIdx) {
   }
   if (fromIdx !== -1) {
     targets.push({ idx: -1, label: '🔄 교체 대기', count: (data.bench || []).length });
-  }
-  if (fromIdx !== -2) {
-    targets.push({ idx: -2, label: '🪑 후보', count: candidatesCount });
   }
   const fromLabel = fromIdx === -2 ? '후보' : (fromIdx === -1 ? '교체 대기' : (TEAM_LABELS[fromIdx] || `${fromIdx+1}팀`));
   const popup = document.createElement('div');
@@ -3050,8 +3046,8 @@ function renderTeamsSection(match) {
   const has = !!(match.teams && match.teams.teams && match.teams.teams.length > 0);
   const yesCount = attendingMemberIds(match.id).length;
 
-  // 시간 윈도우 열렸고 아직 안 짜졌으면 자동 생성 (조용히, 첫 사용자만 성공)
-  if (status === 'open' && !has && yesCount >= 4) {
+  // 시간 윈도우 열렸고 아직 안 짜졌으면 자동 생성 (운영자가 열어둘 때만)
+  if (status === 'open' && !has && yesCount >= 4 && isAdmin()) {
     actionGenerateTeams(match, { silent: true, onlyIfNull: true });
   }
 
