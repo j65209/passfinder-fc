@@ -1940,6 +1940,14 @@
     border-color: rgba(255, 181, 71, 0.25);
     color: var(--warning);
   }
+  .past-match-name .pm-count {
+    display: inline-block;
+    font-size: 10px;
+    color: var(--accent);
+    font-weight: 700;
+    margin-left: 4px;
+    opacity: 0.85;
+  }
   .past-match-empty {
     font-size: 11px;
     color: var(--text-muted);
@@ -3443,10 +3451,10 @@ function pastMatchesSectionHTML() {
       <div class="section-meta">참석자 · 용병 기록</div>
     </div>
     ${shown.map(match => {
-      const yesNames = state.attendance
+      const yesAttendees = state.attendance
         .filter(a => a.match_id === match.id && a.vote === 'yes')
-        .map(a => nameById[a.member_id])
-        .filter(Boolean);
+        .map(a => ({ id: a.member_id, name: nameById[a.member_id] }))
+        .filter(x => x.name);
       const guestList = guestsForMatch(match.id);
       return `
         <div class="past-match-card">
@@ -3456,10 +3464,10 @@ function pastMatchesSectionHTML() {
           </div>
           ${match.location ? `<div class="past-match-loc">📍 ${escapeHtml(match.location)}</div>` : ''}
           <div class="past-match-group">
-            <div class="past-match-group-label yes">참석 팀원 (${yesNames.length}명)</div>
-            ${yesNames.length === 0 ? `<div class="past-match-empty">기록 없음</div>` : `
+            <div class="past-match-group-label yes">참석 팀원 (${yesAttendees.length}명)</div>
+            ${yesAttendees.length === 0 ? `<div class="past-match-empty">기록 없음</div>` : `
               <div class="past-match-names">
-                ${yesNames.map(n => `<span class="past-match-name">${escapeHtml(n)}</span>`).join('')}
+                ${yesAttendees.map(a => `<span class="past-match-name">${escapeHtml(a.name)}<span class="pm-count">⚽${getAttendCount(a.id)}</span></span>`).join('')}
               </div>
             `}
           </div>
@@ -3585,7 +3593,7 @@ function renderAttendance() {
           <div class="attendance-row">
             <div class="attendance-row-top">
               <div class="member-info">
-                <div class="name">${escapeHtml(m.name)}${isMe ? ' <span style="color:var(--accent);font-size:11px;">(나)</span>' : ''}</div>
+                <div class="name">${escapeHtml(m.name)}${isMe ? ' <span style="color:var(--accent);font-size:11px;">(나)</span>' : ''} <span class="attend-badge">⚽ ${getAttendCount(m.id)}회</span></div>
                 <div class="meta">${m.joined || ''} 가입</div>
               </div>
             </div>
