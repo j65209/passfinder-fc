@@ -1872,6 +1872,79 @@
     gap: 6px;
   }
   .usage-add-row2 .btn { white-space: nowrap; padding: 9px 14px; }
+
+  /* PAST MATCHES (이전 경기) */
+  .past-match-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .past-match-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .past-match-date {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 13px;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .past-match-title {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 15px;
+    line-height: 1.3;
+    flex: 1;
+    min-width: 0;
+    word-break: break-word;
+  }
+  .past-match-loc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+  .past-match-group {
+    margin-top: 8px;
+  }
+  .past-match-group-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .past-match-group-label.yes { color: var(--accent); }
+  .past-match-group-label.guest { color: var(--warning); }
+  .past-match-names {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .past-match-name {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .past-match-name.guest {
+    background: rgba(255, 181, 71, 0.10);
+    border-color: rgba(255, 181, 71, 0.25);
+    color: var(--warning);
+  }
+  .past-match-empty {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
 </style>
 </head>
 <body>
@@ -2194,6 +2267,16 @@ function nextMatch() {
 function nextMatches(limit = 2) {
   const today = new Date().toISOString().slice(0, 10);
   return state.matches.filter(m => m.match_date >= today).slice(0, limit);
+}
+function pastMatches() {
+  const today = new Date().toISOString().slice(0, 10);
+  return state.matches
+    .filter(m => m.match_date < today)
+    .slice()
+    .sort((a, b) => {
+      if (a.match_date !== b.match_date) return a.match_date < b.match_date ? 1 : -1;
+      return (b.match_time || '').localeCompare(a.match_time || '');
+    });
 }
 function getVote(matchId, memberId) {
   const a = state.attendance.find(x => x.match_id === matchId && x.member_id === memberId);
@@ -3346,6 +3429,55 @@ function buildPendingVoteMessage(match, pendingMembers) {
   return lines.join('\n').replace(/\n{3,}/g, '\n\n');
 }
 
+function pastMatchesSectionHTML() {
+  const pastList = pastMatches();
+  if (pastList.length === 0) return '';
+  const nameById = {};
+  state.members.forEach(m => { nameById[m.id] = m.name; });
+  state.candidates.forEach(m => { nameById[m.id] = m.name; });
+  const LIMIT = 30;
+  const shown = pastList.slice(0, LIMIT);
+  return `
+    <div class="section-header" style="margin-top:32px;">
+      <div class="section-title">이전 경기 (${pastList.length}개)</div>
+      <div class="section-meta">참석자 · 용병 기록</div>
+    </div>
+    ${shown.map(match => {
+      const yesNames = state.attendance
+        .filter(a => a.match_id === match.id && a.vote === 'yes')
+        .map(a => nameById[a.member_id])
+        .filter(Boolean);
+      const guestList = guestsForMatch(match.id);
+      return `
+        <div class="past-match-card">
+          <div class="past-match-head">
+            <div class="past-match-title">${escapeHtml(match.title)}</div>
+            <div class="past-match-date">${match.match_date}${match.match_time ? ' · ' + match.match_time.slice(0,5) : ''}</div>
+          </div>
+          ${match.location ? `<div class="past-match-loc">📍 ${escapeHtml(match.location)}</div>` : ''}
+          <div class="past-match-group">
+            <div class="past-match-group-label yes">참석 팀원 (${yesNames.length}명)</div>
+            ${yesNames.length === 0 ? `<div class="past-match-empty">기록 없음</div>` : `
+              <div class="past-match-names">
+                ${yesNames.map(n => `<span class="past-match-name">${escapeHtml(n)}</span>`).join('')}
+              </div>
+            `}
+          </div>
+          <div class="past-match-group">
+            <div class="past-match-group-label guest">용병 (${guestList.length}명)</div>
+            ${guestList.length === 0 ? `<div class="past-match-empty">없음</div>` : `
+              <div class="past-match-names">
+                ${guestList.map(g => `<span class="past-match-name guest">${escapeHtml(g.name)}</span>`).join('')}
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }).join('')}
+    ${pastList.length > LIMIT ? `<p class="form-hint" style="text-align:center;margin-top:8px;">+ ${pastList.length - LIMIT}개 더 (오래된 경기는 생략)</p>` : ''}
+  `;
+}
+
 function renderAttendance() {
   const matches = nextMatches(2);
   if (matches.length === 0) {
@@ -3357,6 +3489,7 @@ function renderAttendance() {
         </div>
         ${matchAddFormHTML()}
       ` : ''}
+      ${pastMatchesSectionHTML()}
     `;
     if (isAdmin()) bindMatchAddForm();
     return;
@@ -3537,7 +3670,7 @@ function renderAttendance() {
     `;
   })() : '';
 
-  document.getElementById('panel-attendance').innerHTML = matchSections + adminTrailer;
+  document.getElementById('panel-attendance').innerHTML = matchSections + adminTrailer + pastMatchesSectionHTML();
 
   document.querySelectorAll('[data-vote]').forEach(btn => {
     btn.addEventListener('click', async () => {
