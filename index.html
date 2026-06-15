@@ -1948,6 +1948,35 @@
     margin-left: 4px;
     opacity: 0.85;
   }
+
+  /* INJURY (부상 이월) */
+  .injury-badge {
+    display: inline-block;
+    font-size: 11px;
+    background: rgba(255, 99, 99, 0.15);
+    color: #ff9999;
+    padding: 2px 7px;
+    border-radius: 10px;
+    margin-left: 6px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .btn-injury-on, .btn-injury-off { white-space: nowrap; }
+  .row.is-injured {
+    background: rgba(255, 99, 99, 0.04);
+    border-color: rgba(255, 99, 99, 0.25);
+  }
+  .btn-injury-off {
+    color: #ff9999;
+    border-color: rgba(255, 99, 99, 0.35);
+  }
+  .btn-injury-on {
+    background: rgba(255, 99, 99, 0.18);
+    color: #ff9999;
+    border-color: rgba(255, 99, 99, 0.45);
+  }
   .past-match-empty {
     font-size: 11px;
     color: var(--text-muted);
@@ -2382,6 +2411,20 @@ async function actionRemoveCandidate(id) {
   if (!isAdmin()) { alert('운영자만 가능해요.'); return; }
   if (!confirm('이 후보를 삭제할까요?')) return;
   const { error } = await sb.rpc('delete_member', { p_id: id });
+  if (error) { alert('실패: ' + error.message); return; }
+  await loadAll();
+  render();
+}
+
+async function actionToggleInjury(id, nextValue) {
+  if (!isAdmin()) { alert('운영자만 가능해요.'); return; }
+  const m = state.members.find(x => x.id === id) || state.candidates.find(x => x.id === id);
+  const name = m?.name || '팀원';
+  const msg = nextValue
+    ? `${name} 부상 처리할까요?\n이번 달 회비 미납/납부 목록에서 빠지고 부상 이월로 표시됩니다.`
+    : `${name} 부상 해제할까요?\n회비 미납 목록에 다시 표시됩니다.`;
+  if (!confirm(msg)) return;
+  const { error } = await sb.rpc('set_injured', { p_id: id, p_is_injured: nextValue });
   if (error) { alert('실패: ' + error.message); return; }
   await loadAll();
   render();
@@ -2875,7 +2918,7 @@ async function actionToggleUsageWithdrawn(id) {
 
 async function actionPayAll() {
   const month = state.config.current_month;
-  const unpaid = state.members.filter(m => !isPaid(m.id, month));
+  const unpaid = state.members.filter(m => !m.is_injured && !isPaid(m.id, month));
   if (unpaid.length === 0) { alert('🎉 이미 모두 납부 완료!'); return; }
 
   const list = unpaid.map(m => '· ' + m.name).join('\n');
@@ -3341,7 +3384,8 @@ function renderOverview() {
     : 0;
   const month = state.config.current_month;
   const fee = state.config.monthly_fee;
-  const paid = state.members.filter(m => isPaid(m.id, month)).length;
+  const activeForFee = state.members.filter(m => !m.is_injured);
+  const paid = activeForFee.filter(m => isPaid(m.id, month)).length;
   const collected = paid * fee;
   const dDay = match ? Math.max(0, Math.ceil((new Date(match.match_date) - new Date()) / 86400000)) : 0;
 
@@ -3378,8 +3422,8 @@ function renderOverview() {
       </div>
       <div class="stat-card" data-go="fees" style="--accent-color: var(--info);">
         <div class="label">이번 달 회비</div>
-        <div class="value">${paid}<span style="font-size:20px;color:var(--text-dim);">/${state.members.length}</span></div>
-        <div class="sub">${(collected/10000).toFixed(0)}만원 수금</div>
+        <div class="value">${paid}<span style="font-size:20px;color:var(--text-dim);">/${activeForFee.length}</span></div>
+        <div class="sub">${(collected/10000).toFixed(0)}만원 수금${state.members.length - activeForFee.length > 0 ? ` · 🤕${state.members.length - activeForFee.length}` : ''}</div>
       </div>
       <div class="stat-card" data-go="members" style="--accent-color: var(--warning);">
         <div class="label">총 팀원</div>
@@ -3833,10 +3877,12 @@ function renderAttendance() {
 function renderFees() {
   const month = state.config.current_month;
   const fee = state.config.monthly_fee;
-  const paidMembers = state.members.filter(m => isPaid(m.id, month));
-  const unpaidMembers = state.members.filter(m => !isPaid(m.id, month));
+  const injuredMembers = state.members.filter(m => m.is_injured);
+  const activeMembers = state.members.filter(m => !m.is_injured);
+  const paidMembers = activeMembers.filter(m => isPaid(m.id, month));
+  const unpaidMembers = activeMembers.filter(m => !isPaid(m.id, month));
   const collected = paidMembers.length * fee;
-  const expected = state.members.length * fee;
+  const expected = activeMembers.length * fee;
   const percent = expected > 0 ? Math.round((collected / expected) * 100) : 0;
 
   const bankConfigured = !!state.config.bank_account_number;
@@ -4018,6 +4064,20 @@ function renderFees() {
         `;
       }).join('')}
     ` : ''}
+
+    ${injuredMembers.length > 0 ? `
+      <div class="section-header" style="margin-top:24px;"><div class="section-title">🤕 부상 이월 (${injuredMembers.length}명)</div><div class="section-meta">회비 면제</div></div>
+      ${injuredMembers.map(m => `
+        <div class="row is-injured">
+          <div class="row-left">
+            <div class="member-info">
+              <div class="name">${escapeHtml(m.name)} <span class="injury-badge">🤕 부상 이월</span></div>
+              <div class="meta">이번 달 회비 면제 · 팀원 탭에서 해제 가능</div>
+            </div>
+          </div>
+        </div>
+      `).join('')}
+    ` : ''}
   `;
 
   document.querySelectorAll('[data-pay-mark]').forEach(btn => {
@@ -4042,7 +4102,7 @@ function renderFees() {
     btn.addEventListener('click', () => {
       haptic();
       const m = btn.dataset.unpaidReset;
-      const unpaid = state.members.filter(x => !isPaid(x.id, m));
+      const unpaid = state.members.filter(x => !x.is_injured && !isPaid(x.id, m));
       const fresh = buildUnpaidFeeMessage(m, fee, unpaid, state.config);
       const ta = document.querySelector(`[data-unpaid-msg="${m}"]`);
       if (ta) ta.value = fresh;
@@ -4089,7 +4149,7 @@ function renderFees() {
 function renderMembers() {
   document.getElementById('panel-members').innerHTML = `
     <div class="section-header">
-      <div class="section-title">팀원 ${state.members.length}명</div>
+      <div class="section-title">팀원 ${state.members.length}명${state.members.filter(m => m.is_injured).length > 0 ? ` <span style="font-size:12px;color:#ff9999;font-weight:400;">· 🤕 ${state.members.filter(m => m.is_injured).length}명</span>` : ''}</div>
     </div>
 
     ${!isAdmin() ? `<div class="info-banner" style="margin-bottom:12px;"><strong>📲 입장은 직접</strong>새 팀원이 링크 접속 → 본인 정보 입력 → 자동 등록</div>` : ''}
@@ -4101,11 +4161,12 @@ function renderMembers() {
       const levelLabel = m.skill_level ? LEVEL_LABELS[m.skill_level] : '미설정';
       const posLabel = formatPositions(m.preferred_positions) || '미설정';
       const isUnset = (v) => v === '미설정';
+      const injured = !!m.is_injured;
       return `
-      <div class="row">
+      <div class="row${injured ? ' is-injured' : ''}">
         <div class="row-left">
           <div class="member-info">
-            <div class="name">${escapeHtml(m.name)}${state.user?.id === m.id ? ' <span style="color:var(--accent);font-size:11px;">(나)</span>' : ''}${m.phone ? ` <span style="color:var(--text-muted);font-size:13px;font-weight:400;margin-left:6px;">${formatPhone(m.phone)}</span>` : ''} <span class="attend-badge">⚽ ${getAttendCount(m.id)}회</span></div>
+            <div class="name">${escapeHtml(m.name)}${state.user?.id === m.id ? ' <span style="color:var(--accent);font-size:11px;">(나)</span>' : ''}${m.phone ? ` <span style="color:var(--text-muted);font-size:13px;font-weight:400;margin-left:6px;">${formatPhone(m.phone)}</span>` : ''} <span class="attend-badge">⚽ ${getAttendCount(m.id)}회</span>${injured ? ' <span class="injury-badge">🤕 부상 이월</span>' : ''}</div>
             <div class="profile-badges">
               <button class="profile-badge ${isUnset(footLabel) ? 'unset' : ''}" data-profile-edit="${m.id}">🦶 ${footLabel}</button>
               <button class="profile-badge ${isUnset(levelLabel) ? 'unset' : ''}" data-profile-edit="${m.id}">📊 ${levelLabel}</button>
@@ -4115,7 +4176,8 @@ function renderMembers() {
           </div>
         </div>
         ${isAdmin() ? `
-          <div style="display:flex;gap:6px;">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+            <button class="btn ${injured ? 'btn-injury-on' : 'btn-injury-off'}" data-injury="${m.id}" data-injury-next="${injured ? 'false' : 'true'}">${injured ? '🤕 부상 해제' : '🤕 부상'}</button>
             <button class="btn" data-demote="${m.id}">후보로</button>
             <button class="btn" data-remove="${m.id}">삭제</button>
           </div>
@@ -4177,6 +4239,14 @@ function renderMembers() {
     btn.addEventListener('click', async () => {
       haptic();
       await actionDemoteMember(btn.dataset.demote);
+    });
+  });
+
+  document.querySelectorAll('[data-injury]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      haptic();
+      const next = btn.dataset.injuryNext === 'true';
+      await actionToggleInjury(btn.dataset.injury, next);
     });
   });
 
