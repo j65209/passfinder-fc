@@ -2297,18 +2297,34 @@ async function loadAll() {
   if (!state.config.current_month) state.config.current_month = getCurrentMonth();
 }
 
+// 로컬 타임존 기준 오늘 (YYYY-MM-DD). toISOString()은 UTC라 KST 00:00에 어제 날짜가 나옴
+function localTodayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// 경기가 끝났는지 (시간 설정 시 시작 + 2시간 후, 미설정 시 다음 날)
+function isMatchOver(match) {
+  const start = getMatchStartTime(match);
+  if (start) {
+    const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+    return new Date() >= end;
+  }
+  return match.match_date < localTodayStr();
+}
+
 function nextMatch() {
-  const today = new Date().toISOString().slice(0, 10);
-  return state.matches.find(m => m.match_date >= today) || null;
+  return state.matches.find(m => !isMatchOver(m)) || null;
 }
 function nextMatches(limit = 2) {
-  const today = new Date().toISOString().slice(0, 10);
-  return state.matches.filter(m => m.match_date >= today).slice(0, limit);
+  return state.matches.filter(m => !isMatchOver(m)).slice(0, limit);
 }
 function pastMatches() {
-  const today = new Date().toISOString().slice(0, 10);
   return state.matches
-    .filter(m => m.match_date < today)
+    .filter(m => isMatchOver(m))
     .slice()
     .sort((a, b) => {
       if (a.match_date !== b.match_date) return a.match_date < b.match_date ? 1 : -1;
@@ -2327,21 +2343,8 @@ function isPaid(memberId, month) {
   return !!(p && p.paid_at);
 }
 function getAttendCount(memberId) {
-  // "경기 끝난 후" 기준으로 참석(yes) 합산
-  //   - 시간 설정된 경기: 시작 + 2시간 이후
-  //   - 시간 미설정 경기: 다음 날(자정)부터
-  const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
-  const finishedIds = new Set();
-  for (const m of state.matches) {
-    const start = getMatchStartTime(m);
-    if (start) {
-      const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
-      if (now >= end) finishedIds.add(m.id);
-    } else if (m.match_date < todayStr) {
-      finishedIds.add(m.id);
-    }
-  }
+  // "경기 끝난 후" 기준으로 참석(yes) 합산 (isMatchOver와 동일 규칙)
+  const finishedIds = new Set(state.matches.filter(isMatchOver).map(m => m.id));
   return state.attendance.filter(a =>
     a.member_id === memberId && a.vote === 'yes' && finishedIds.has(a.match_id)
   ).length;
@@ -2375,6 +2378,22 @@ async function actionRemoveMember(id) {
   if (!isAdmin()) { alert('운영자만 삭제할 수 있어요.'); return; }
   if (!confirm('정말 삭제할까요? 이 팀원의 참석/회비 기록도 함께 삭제됩니다.')) return;
   const { error } = await sb.rpc('delete_member', { p_id: id });
+  if (error) { alert('실패: ' + error.message); return; }
+  await loadAll();
+  render();
+}
+
+async function actionUpdateMemberName(id) {
+  if (!isAdmin()) { alert('운영자만 수정할 수 있어요.'); return; }
+  const current = state.members.find(m => m.id === id) || state.candidates.find(m => m.id === id);
+  if (!current) return;
+  const next = prompt('새 이름을 입력하세요', current.name);
+  if (next === null) return;
+  const trimmed = next.trim();
+  if (!trimmed) { alert('이름이 비어있어요.'); return; }
+  if (trimmed.length > 30) { alert('이름은 30자 이내로 입력하세요.'); return; }
+  if (trimmed === current.name) return;
+  const { error } = await sb.rpc('update_member_name', { p_id: id, p_name: trimmed });
   if (error) { alert('실패: ' + error.message); return; }
   await loadAll();
   render();
@@ -3012,33 +3031,63 @@ function shuffleArray(arr) {
 }
 
 // 분배 규칙:
-// 1~3명: 팀 1개 (모자라서 게임 불가지만 일단 보여줌)
-// 4~11명: 6명 못 채우면 균등 2등분 (5+5, 5+6 등)
-// 12~17명: 6명 팀 가능한 만큼 + 나머지가 4~5명이면 추가팀, 1~3명이면 교체 대기
-// 18명+: 같은 룰 (6+6+6+나머지)
+// 1~3명: 팀 1개 (게임 불가 - 그냥 보여주기만)
+// 4~14명: 2팀 (균등 분할, 5+5, 7+7 까지)
+// 15~23명: 3팀 (5+5+5 부터, 15명일 때 3파전 가능)
+// 24명~: 4팀 (6+6+6+6 부터)
+// 팀 인원이 최대치(7명)을 넘어서면 초과 인원은 교체 대기로 빠짐
+//
+// 실력 밸런스: skill_level(상/중/하)를 티어별로 묶어서 스네이크 드래프트로 분배
+//   - 상급(advanced), 중급(intermediate), 초급(beginner), 미설정/용병=중급으로 간주
+function getTargetTeamCount(n) {
+  if (n < 4) return 1;
+  if (n <= 14) return 2;
+  if (n <= 23) return 3;
+  return 4;
+}
+
+const MAX_TEAM_SIZE = 7;
+const SKILL_TIER = { advanced: 0, intermediate: 1, beginner: 2 };
+
+function getMemberSkillTier(id) {
+  if (typeof id === 'string' && id.startsWith('g:')) return 1; // 용병은 중급
+  const m = state.members.find(x => x.id === id);
+  const lvl = m?.skill_level;
+  return SKILL_TIER[lvl] ?? 1;
+}
+
 function splitIntoTeams(memberIds) {
-  const shuffled = shuffleArray(memberIds);
-  const n = shuffled.length;
+  const n = memberIds.length;
   if (n === 0) return { teams: [], bench: [] };
-  if (n < 4) return { teams: [shuffled], bench: [] };
-  if (n < 12) {
-    const half = Math.ceil(n / 2);
-    return { teams: [shuffled.slice(0, half), shuffled.slice(half)], bench: [] };
-  }
-  const fullTeams = Math.floor(n / 6);
-  const remainder = n - fullTeams * 6;
-  const teams = [];
-  for (let i = 0; i < fullTeams; i++) {
-    teams.push(shuffled.slice(i * 6, (i + 1) * 6));
-  }
-  if (remainder >= 4) {
-    teams.push(shuffled.slice(fullTeams * 6));
-    return { teams, bench: [] };
-  }
-  if (remainder > 0) {
-    return { teams, bench: shuffled.slice(fullTeams * 6) };
-  }
-  return { teams, bench: [] };
+  if (n < 4) return { teams: [shuffleArray(memberIds)], bench: [] };
+
+  const T = getTargetTeamCount(n);
+  const maxUsable = T * MAX_TEAM_SIZE;
+
+  // 1) 실력 티어별로 묶고 각 티어 내부는 셔플
+  const byTier = [[], [], []];
+  for (const id of memberIds) byTier[getMemberSkillTier(id)].push(id);
+  byTier.forEach((arr, i) => byTier[i] = shuffleArray(arr));
+  const ordered = [...byTier[0], ...byTier[1], ...byTier[2]];
+
+  // 2) 팀 최대치 초과분은 교체 대기로
+  const usable = ordered.slice(0, Math.min(n, maxUsable));
+  const bench = ordered.slice(usable.length);
+
+  // 3) 스네이크 드래프트로 분배 (티어가 높은 사람부터 0팀→T-1팀→0팀 순)
+  const teams = Array.from({ length: T }, () => []);
+  usable.forEach((id, i) => {
+    const round = Math.floor(i / T);
+    const pos = i % T;
+    const teamIdx = round % 2 === 0 ? pos : (T - 1 - pos);
+    teams[teamIdx].push(id);
+  });
+
+  // 4) 각 팀 내부 순서는 랜덤하게 (티어 노출 방지)
+  return {
+    teams: teams.map(t => shuffleArray(t)),
+    bench
+  };
 }
 
 function getMatchStartTime(match) {
@@ -3341,12 +3390,21 @@ function bindTeamsHandlers(match) {
   });
 }
 
-// 카운트다운/윈도우 자동 갱신 — 60초마다 overview만 다시 그림
+// 카운트다운/윈도우 자동 갱신 — 60초마다 갱신
+// 경기가 끝나서 next match가 바뀌면 전체 다시 그림 (00:00에 다음 주 경기 노출)
 let __teamRefreshTimer = null;
+let __lastNextMatchId = null;
 function scheduleTeamRefresh() {
+  __lastNextMatchId = nextMatch()?.id || null;
   if (__teamRefreshTimer) return;
   __teamRefreshTimer = setInterval(() => {
     const match = nextMatch();
+    const curId = match?.id || null;
+    if (curId !== __lastNextMatchId) {
+      __lastNextMatchId = curId;
+      render();
+      return;
+    }
     if (!match) return;
     const status = getTeamWindowStatus(match);
     if (status === 'too-early' || status === 'open') {
@@ -3692,8 +3750,7 @@ function renderAttendance() {
 
   const shownIds = new Set(matches.map(m => m.id));
   const adminTrailer = isAdmin() ? (() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const upcoming = state.matches.filter(m => m.match_date >= today && !shownIds.has(m.id));
+    const upcoming = state.matches.filter(m => !isMatchOver(m) && !shownIds.has(m.id));
     return `
       ${upcoming.length > 0 ? `
         <div class="section-header" style="margin-top:24px;">
@@ -4177,6 +4234,7 @@ function renderMembers() {
         </div>
         ${isAdmin() ? `
           <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+            <button class="btn" data-rename="${m.id}">✏️ 이름 수정</button>
             <button class="btn ${injured ? 'btn-injury-on' : 'btn-injury-off'}" data-injury="${m.id}" data-injury-next="${injured ? 'false' : 'true'}">${injured ? '🤕 부상 해제' : '🤕 부상'}</button>
             <button class="btn" data-demote="${m.id}">후보로</button>
             <button class="btn" data-remove="${m.id}">삭제</button>
@@ -4201,7 +4259,8 @@ function renderMembers() {
           </div>
         </div>
         ${isAdmin() ? `
-          <div style="display:flex;gap:6px;">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+            <button class="btn" data-rename="${c.id}">✏️ 이름 수정</button>
             <button class="btn" data-promote="${c.id}">정식 등록</button>
             <button class="btn" data-remove-cand="${c.id}">삭제</button>
           </div>
@@ -4227,6 +4286,13 @@ function renderMembers() {
   });
 
   if (!isAdmin()) return;
+
+  document.querySelectorAll('[data-rename]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      haptic();
+      await actionUpdateMemberName(btn.dataset.rename);
+    });
+  });
 
   document.querySelectorAll('[data-remove]').forEach(btn => {
     btn.addEventListener('click', async () => {
