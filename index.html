@@ -3194,8 +3194,11 @@ function shuffleArray(arr) {
 // 24명~: 4팀 (6+6+6+6 부터)
 // 팀 인원이 최대치(7명)을 넘어서면 초과 인원은 교체 대기로 빠짐
 //
-// 실력 밸런스: skill_level(상/중/하)를 티어별로 묶어서 스네이크 드래프트로 분배
-//   - 상급(advanced), 중급(intermediate), 초급(beginner), 미설정/용병=중급으로 간주
+// 실력 밸런스 알고리즘: LPT(Longest Processing Time) 그리디
+//   - 상급=3, 중급=2, 초급=1, 미설정/용병=2 (중급 가정)
+//   - 점수 내림차순 정렬 후, 각 멤버를 현재 총점이 가장 낮은 팀에 배정
+//   - 동률 시 (1) 인원 수가 적은 팀 (2) 랜덤 으로 결정
+//   - 매번 셔플마다 동률 랜덤 + 동점자 랜덤으로 변주 유지
 function getTargetTeamCount(n) {
   if (n < 4) return 1;
   if (n <= 14) return 2;
@@ -3204,13 +3207,12 @@ function getTargetTeamCount(n) {
 }
 
 const MAX_TEAM_SIZE = 7;
-const SKILL_TIER = { advanced: 0, intermediate: 1, beginner: 2 };
+const SKILL_SCORE = { advanced: 3, intermediate: 2, beginner: 1 };
 
-function getMemberSkillTier(id) {
-  if (typeof id === 'string' && id.startsWith('g:')) return 1; // 용병은 중급
+function getMemberSkillScore(id) {
+  if (typeof id === 'string' && id.startsWith('g:')) return 2; // 용병 = 중급
   const m = state.members.find(x => x.id === id);
-  const lvl = m?.skill_level;
-  return SKILL_TIER[lvl] ?? 1;
+  return SKILL_SCORE[m?.skill_level] ?? 2; // 미설정 = 중급
 }
 
 function splitIntoTeams(memberIds) {
@@ -3221,28 +3223,36 @@ function splitIntoTeams(memberIds) {
   const T = getTargetTeamCount(n);
   const maxUsable = T * MAX_TEAM_SIZE;
 
-  // 1) 실력 티어별로 묶고 각 티어 내부는 셔플
-  const byTier = [[], [], []];
-  for (const id of memberIds) byTier[getMemberSkillTier(id)].push(id);
-  byTier.forEach((arr, i) => byTier[i] = shuffleArray(arr));
-  const ordered = [...byTier[0], ...byTier[1], ...byTier[2]];
+  // 1) 멤버별 점수 + 랜덤 tiebreak 부여
+  const scored = memberIds.map(id => ({
+    id,
+    score: getMemberSkillScore(id),
+    rand: Math.random()
+  }));
 
-  // 2) 팀 최대치 초과분은 교체 대기로
-  const usable = ordered.slice(0, Math.min(n, maxUsable));
-  const bench = ordered.slice(usable.length);
+  // 2) 점수 내림차순 + 동률 시 랜덤 정렬
+  scored.sort((a, b) => (b.score - a.score) || (a.rand - b.rand));
 
-  // 3) 스네이크 드래프트로 분배 (티어가 높은 사람부터 0팀→T-1팀→0팀 순)
-  const teams = Array.from({ length: T }, () => []);
-  usable.forEach((id, i) => {
-    const round = Math.floor(i / T);
-    const pos = i % T;
-    const teamIdx = round % 2 === 0 ? pos : (T - 1 - pos);
-    teams[teamIdx].push(id);
-  });
+  // 3) 팀 최대치 초과분은 교체 대기로
+  const usable = scored.slice(0, Math.min(n, maxUsable));
+  const bench = scored.slice(usable.length).map(x => x.id);
 
-  // 4) 각 팀 내부 순서는 랜덤하게 (티어 노출 방지)
+  // 4) LPT 그리디: 매 라운드 가장 약한(총점 낮은) 팀에 다음 멤버 배정
+  const teams = Array.from({ length: T }, () => ({ members: [], totalScore: 0 }));
+  for (const x of usable) {
+    // (1) 총점 낮은 팀 (2) 인원 적은 팀 (3) 랜덤
+    teams.sort((a, b) =>
+      (a.totalScore - b.totalScore) ||
+      (a.members.length - b.members.length) ||
+      (Math.random() - 0.5)
+    );
+    teams[0].members.push(x.id);
+    teams[0].totalScore += x.score;
+  }
+
+  // 5) 각 팀 내부 순서는 랜덤 (실력 티어 노출 방지)
   return {
-    teams: teams.map(t => shuffleArray(t)),
+    teams: teams.map(t => shuffleArray(t.members)),
     bench
   };
 }
