@@ -1,6 +1,7 @@
 -- 마이그레이션 011:
 --   운영자가 팀원명을 수정할 수 있도록 update_member_name RPC 추가
 --   - 프론트엔드 PIN 게이트로 운영자만 사용 (다른 RPC와 동일한 방식)
+--   - 이름 변경 시 match_guests.added_by_name 도 함께 갱신 (denormalized snapshot 동기화)
 -- Supabase 대시보드 → SQL Editor → New query → 이 파일 통째로 복사 → RUN
 
 create or replace function update_member_name(p_id uuid, p_name text)
@@ -19,6 +20,7 @@ begin
     raise exception '이름은 30자 이내로 입력하세요';
   end if;
   update members set name = v_name where id = p_id;
+  update match_guests set added_by_name = v_name where added_by_member_id = p_id;
 end;
 $UMN$;
 grant execute on function update_member_name(uuid, text) to anon, authenticated;

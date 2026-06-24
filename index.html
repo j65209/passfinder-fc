@@ -2510,6 +2510,17 @@ async function actionUpdateMemberName(id) {
   if (trimmed === current.name) return;
   const { error } = await sb.rpc('update_member_name', { p_id: id, p_name: trimmed });
   if (error) { alert('실패: ' + error.message); return; }
+  // 본인 이름을 수정한 경우 헤더 뱃지 / localStorage 도 갱신
+  if (state.user?.id === id) {
+    state.user.name = trimmed;
+    try {
+      const cached = JSON.parse(localStorage.getItem('pf_member') || 'null');
+      if (cached && cached.id === id) {
+        cached.name = trimmed;
+        localStorage.setItem('pf_member', JSON.stringify(cached));
+      }
+    } catch {}
+  }
   await loadAll();
   render();
 }
