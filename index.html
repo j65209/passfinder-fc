@@ -1964,6 +1964,73 @@
     white-space: nowrap;
   }
   .btn-injury-on, .btn-injury-off { white-space: nowrap; }
+
+  /* MEMBER CARD (팀원/후보 모바일 전용 카드) */
+  .member-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 8px;
+  }
+  .member-card.is-injured {
+    background: rgba(255, 99, 99, 0.04);
+    border-color: rgba(255, 99, 99, 0.25);
+  }
+  .member-card .name-line {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.45;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 6px;
+    row-gap: 4px;
+  }
+  .member-card .name-line .phone-sub {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-muted);
+  }
+  .member-card .name-line .me-mark {
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .member-card .meta {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 8px;
+    letter-spacing: 0.3px;
+    font-weight: 500;
+  }
+  .member-card .profile-badges {
+    margin-top: 8px;
+  }
+  .member-card-actions {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 12px;
+  }
+  .member-card-actions.cols-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .member-card-actions .btn {
+    padding: 10px 4px;
+    font-size: 12px;
+    min-width: 0;
+    white-space: nowrap;
+    letter-spacing: -0.2px;
+  }
+  @media (max-width: 360px) {
+    .member-card-actions {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .member-card-actions.cols-3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
   .row.is-injured {
     background: rgba(255, 99, 99, 0.04);
     border-color: rgba(255, 99, 99, 0.25);
@@ -4220,22 +4287,24 @@ function renderMembers() {
       const isUnset = (v) => v === '미설정';
       const injured = !!m.is_injured;
       return `
-      <div class="row${injured ? ' is-injured' : ''}">
-        <div class="row-left">
-          <div class="member-info">
-            <div class="name">${escapeHtml(m.name)}${state.user?.id === m.id ? ' <span style="color:var(--accent);font-size:11px;">(나)</span>' : ''}${m.phone ? ` <span style="color:var(--text-muted);font-size:13px;font-weight:400;margin-left:6px;">${formatPhone(m.phone)}</span>` : ''} <span class="attend-badge">⚽ ${getAttendCount(m.id)}회</span>${injured ? ' <span class="injury-badge">🤕 부상 이월</span>' : ''}</div>
-            <div class="profile-badges">
-              <button class="profile-badge ${isUnset(footLabel) ? 'unset' : ''}" data-profile-edit="${m.id}">🦶 ${footLabel}</button>
-              <button class="profile-badge ${isUnset(levelLabel) ? 'unset' : ''}" data-profile-edit="${m.id}">📊 ${levelLabel}</button>
-              <button class="profile-badge ${isUnset(posLabel) ? 'unset' : ''}" data-profile-edit="${m.id}">🎯 ${escapeHtml(posLabel)}</button>
-            </div>
-            <div class="meta">${m.joined || ''} 가입</div>
-          </div>
+      <div class="member-card${injured ? ' is-injured' : ''}">
+        <div class="name-line">
+          <span>${escapeHtml(m.name)}</span>
+          ${state.user?.id === m.id ? '<span class="me-mark">(나)</span>' : ''}
+          ${m.phone ? `<span class="phone-sub">${formatPhone(m.phone)}</span>` : ''}
+          <span class="attend-badge">⚽ ${getAttendCount(m.id)}회</span>
+          ${injured ? '<span class="injury-badge">🤕 부상 이월</span>' : ''}
         </div>
+        <div class="profile-badges">
+          <button class="profile-badge ${isUnset(footLabel) ? 'unset' : ''}" data-profile-edit="${m.id}">🦶 ${footLabel}</button>
+          <button class="profile-badge ${isUnset(levelLabel) ? 'unset' : ''}" data-profile-edit="${m.id}">📊 ${levelLabel}</button>
+          <button class="profile-badge ${isUnset(posLabel) ? 'unset' : ''}" data-profile-edit="${m.id}">🎯 ${escapeHtml(posLabel)}</button>
+        </div>
+        <div class="meta">${m.joined || ''} 가입</div>
         ${isAdmin() ? `
-          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
-            <button class="btn" data-rename="${m.id}">✏️ 이름 수정</button>
-            <button class="btn ${injured ? 'btn-injury-on' : 'btn-injury-off'}" data-injury="${m.id}" data-injury-next="${injured ? 'false' : 'true'}">${injured ? '🤕 부상 해제' : '🤕 부상'}</button>
+          <div class="member-card-actions">
+            <button class="btn" data-rename="${m.id}">✏️ 이름</button>
+            <button class="btn ${injured ? 'btn-injury-on' : 'btn-injury-off'}" data-injury="${m.id}" data-injury-next="${injured ? 'false' : 'true'}">${injured ? '🤕 해제' : '🤕 부상'}</button>
             <button class="btn" data-demote="${m.id}">후보로</button>
             <button class="btn" data-remove="${m.id}">삭제</button>
           </div>
@@ -4251,16 +4320,15 @@ function renderMembers() {
     ${state.candidates.length === 0 ? `
       <div class="empty-state">${isAdmin() ? '아직 등록된 후보가 없어요. 아래에서 추가할 수 있어요.' : '아직 후보가 없어요'}</div>
     ` : state.candidates.map(c => `
-      <div class="row">
-        <div class="row-left">
-          <div class="member-info">
-            <div class="name" style="color:var(--text-muted);">${escapeHtml(c.name)}${c.phone ? ` <span style="font-size:13px;font-weight:400;margin-left:6px;">${formatPhone(c.phone)}</span>` : ''}</div>
-            <div class="meta">${c.joined || ''} 등록 · 후보</div>
-          </div>
+      <div class="member-card">
+        <div class="name-line" style="color:var(--text-muted);">
+          <span>${escapeHtml(c.name)}</span>
+          ${c.phone ? `<span class="phone-sub">${formatPhone(c.phone)}</span>` : ''}
         </div>
+        <div class="meta">${c.joined || ''} 등록 · 후보</div>
         ${isAdmin() ? `
-          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
-            <button class="btn" data-rename="${c.id}">✏️ 이름 수정</button>
+          <div class="member-card-actions cols-3">
+            <button class="btn" data-rename="${c.id}">✏️ 이름</button>
             <button class="btn" data-promote="${c.id}">정식 등록</button>
             <button class="btn" data-remove-cand="${c.id}">삭제</button>
           </div>
