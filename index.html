@@ -915,6 +915,53 @@
     font-weight: 500;
   }
 
+  /* PROFILE REMINDER (본인 프로필 미설정 경고 배너) */
+  .profile-reminder {
+    background: linear-gradient(135deg, rgba(255,181,71,0.15), rgba(255,181,71,0.08));
+    border: 1px solid rgba(255,181,71,0.4);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .profile-reminder:active { transform: scale(0.99); }
+  .profile-reminder:hover { background: linear-gradient(135deg, rgba(255,181,71,0.22), rgba(255,181,71,0.12)); }
+  .profile-reminder-text {
+    flex: 1;
+    min-width: 0;
+  }
+  .profile-reminder-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--warning);
+    margin-bottom: 2px;
+  }
+  .profile-reminder-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .profile-reminder-btn {
+    background: var(--warning);
+    color: #1a1410;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 900;
+    white-space: nowrap;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    flex-shrink: 0;
+  }
+  .profile-reminder-btn:active { transform: scale(0.95); }
+
   /* INFO BANNER */
   .info-banner {
     background: var(--info-dim);
@@ -2181,6 +2228,7 @@
   </header>
 
   <main>
+    <div id="profileReminder"></div>
     <section class="panel active" id="panel-overview"></section>
     <section class="panel" id="panel-attendance"></section>
     <section class="panel" id="panel-fees"></section>
@@ -2571,6 +2619,37 @@ function promptProfileIfMissing() {
   if (memberHasIncompleteProfile(me)) {
     showProfileModal(state.user.id, { firstTime: true });
   }
+}
+
+function renderProfileReminder() {
+  const host = document.getElementById('profileReminder');
+  if (!host) return;
+  if (!state.user || state.user.role !== 'member' || !state.user.id) {
+    host.innerHTML = '';
+    return;
+  }
+  const me = state.members.find(x => x.id === state.user.id);
+  if (!me || !memberHasIncompleteProfile(me)) {
+    host.innerHTML = '';
+    return;
+  }
+  const missing = [];
+  if (!me.dominant_foot) missing.push('주발');
+  if (!me.skill_level) missing.push('레벨');
+  if (!Array.isArray(me.preferred_positions) || me.preferred_positions.length === 0) missing.push('포지션');
+  host.innerHTML = `
+    <div class="profile-reminder" id="profileReminderCard">
+      <div class="profile-reminder-text">
+        <div class="profile-reminder-title">🎯 프로필 미완성 (${missing.join(' · ')})</div>
+        <div class="profile-reminder-sub">팀 자동 분할에 필요해요. 한 번만 설정해주세요.</div>
+      </div>
+      <button class="profile-reminder-btn">설정하기</button>
+    </div>
+  `;
+  document.getElementById('profileReminderCard')?.addEventListener('click', () => {
+    haptic();
+    showProfileModal(state.user.id, { firstTime: true });
+  });
 }
 
 function showProfileModal(memberId, opts) {
@@ -3496,6 +3575,7 @@ function render() {
     `;
   }
 
+  renderProfileReminder();
   renderOverview();
   renderAttendance();
   renderFees();
