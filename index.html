@@ -2409,7 +2409,14 @@ async function loadAll() {
       }
     });
   }
-  if (!state.config.current_month) state.config.current_month = getCurrentMonth();
+  const actualMonth = getCurrentMonth();
+  if (state.config.current_month !== actualMonth) {
+    state.config.current_month = actualMonth;
+    sb.from('app_config').upsert(
+      { key: 'current_month', value: actualMonth, updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    ).then(({ error }) => { if (error) console.error('current_month sync 실패:', error); });
+  }
 }
 
 // 로컬 타임존 기준 오늘 (YYYY-MM-DD). toISOString()은 UTC라 KST 00:00에 어제 날짜가 나옴
@@ -2972,7 +2979,7 @@ async function copyToClipboard(text) {
 }
 
 // 운영자 전용 인라인 텍스트 편집 — 공지/사용내역에서 공통 사용
-function renderEditableCard({ icon, title, configKey, editingFlag, emptyMsg, inputId, editId, saveId, cancelId, placeholder, addLabel = '+ 작성' }) {
+function renderEditableCard({ icon, title, configKey, editingFlag, emptyMsg, inputId, editId, saveId, cancelId, placeholder, addLabel = '+ 작성', copyId = null }) {
   const value = state.config[configKey] || '';
   if (state[editingFlag] && isAdmin()) {
     return `
@@ -2991,7 +2998,10 @@ function renderEditableCard({ icon, title, configKey, editingFlag, emptyMsg, inp
     <div class="editable-card">
       <div class="ec-head">
         <div class="ec-title">${icon} ${title}</div>
-        ${isAdmin() ? `<button class="ec-edit" id="${editId}">${value ? '✏️ 편집' : addLabel}</button>` : ''}
+        <div style="display:flex;gap:6px;">
+          ${copyId && value ? `<button class="ec-edit" id="${copyId}" data-copy-text="${escapeHtml(value)}">📋 복사</button>` : ''}
+          ${isAdmin() ? `<button class="ec-edit" id="${editId}">${value ? '✏️ 편집' : addLabel}</button>` : ''}
+        </div>
       </div>
       ${value
         ? `<div class="ec-body">${escapeHtml(value)}</div>`
@@ -4120,6 +4130,7 @@ function renderFees() {
       configKey: 'fee_notice', editingFlag: 'editingNotice',
       inputId: 'feeNoticeInput', editId: 'qbEditNotice',
       saveId: 'qbSaveNotice', cancelId: 'qbCancelNotice',
+      copyId: 'qbCopyNotice',
       addLabel: '+ 공지 작성',
       placeholder: '회비 납부 안내, 마감일, 계좌번호 등 자유롭게 작성하세요.',
       emptyMsg: '아직 공지가 없어요. 편집 버튼으로 작성하세요.'
@@ -4361,6 +4372,16 @@ function renderFees() {
   document.getElementById('qbEditNotice')?.addEventListener('click', () => { haptic(); actionStartEditConfig('editingNotice', 'feeNoticeInput'); });
   document.getElementById('qbSaveNotice')?.addEventListener('click', () => { haptic(); actionSaveConfig('fee_notice', 'feeNoticeInput', 'editingNotice'); });
   document.getElementById('qbCancelNotice')?.addEventListener('click', () => { haptic(); actionCancelEditConfig('editingNotice'); });
+  document.getElementById('qbCopyNotice')?.addEventListener('click', async (e) => {
+    haptic();
+    const btn = e.currentTarget;
+    const text = state.config.fee_notice || '';
+    if (!text) return;
+    const ok = await copyToClipboard(text);
+    const original = btn.textContent;
+    btn.textContent = ok ? '✅ 복사됨' : '⚠️ 실패';
+    setTimeout(() => { btn.textContent = original; }, 1800);
+  });
   document.getElementById('qbAddUsage')?.addEventListener('click', () => { haptic(); actionAddUsageEntry(); });
   document.querySelectorAll('[data-usage-del]').forEach(btn => {
     btn.addEventListener('click', () => { haptic(); actionDeleteUsageEntry(btn.dataset.usageDel); });
