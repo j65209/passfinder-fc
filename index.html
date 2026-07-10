@@ -3862,9 +3862,14 @@ function renderAttendance() {
 
       ${(() => {
         const voteOrder = { maybe: 0, yes: 1, no: 2 };
-        return [...state.members].sort((a, b) =>
-          voteOrder[getVote(match.id, a.id)] - voteOrder[getVote(match.id, b.id)]
-        );
+        const myId = state.user?.id;
+        return [...state.members].sort((a, b) => {
+          if (myId) {
+            if (a.id === myId) return -1;
+            if (b.id === myId) return 1;
+          }
+          return voteOrder[getVote(match.id, a.id)] - voteOrder[getVote(match.id, b.id)];
+        });
       })().map(m => {
         const vote = getVote(match.id, m.id);
         const canEdit = isAdmin() || (state.user?.id === m.id);
