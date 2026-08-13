@@ -528,6 +528,13 @@
     width: 100%;
   }
 
+  .attend-updated {
+    display: inline-block;
+    font-size: 10px;
+    color: var(--text-muted);
+    opacity: 0.85;
+  }
+
   /* FEES PROGRESS */
   .fees-header {
     background: var(--bg-card);
@@ -2299,6 +2306,28 @@ function getCurrentMonth() {
 }
 function haptic() { if (navigator.vibrate) navigator.vibrate(10); }
 
+// "방금", "3분 전", "5시간 전", "3일 전", "12/25" 형태로 상대 시간 표시
+function formatRelativeTime(iso) {
+  if (!iso) return '';
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return '';
+  const diffSec = Math.floor((Date.now() - t) / 1000);
+  if (diffSec < 30) return '방금';
+  if (diffSec < 60) return `${diffSec}초 전`;
+  const min = Math.floor(diffSec / 60);
+  if (min < 60) return `${min}분 전`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}시간 전`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}일 전`;
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function getAttendance(matchId, memberId) {
+  return state.attendance.find(x => x.match_id === matchId && x.member_id === memberId) || null;
+}
+
 // ========== AUTH ==========
 async function getStoredAdminPin() {
   const { data } = await sb.from('app_config').select('value').eq('key', 'admin_pin').maybeSingle();
@@ -2780,18 +2809,19 @@ function guestsForMatch(matchId) {
   return state.guests.filter(g => g.match_id === matchId);
 }
 
-async function actionAddGuest(matchId, name) {
+async function actionAddGuest(matchId, name, inviterId) {
   if (isVisitor()) { alert('방문자는 조회만 가능해요.'); return false; }
   const trimmed = (name || '').trim();
   if (!trimmed) { alert('용병 이름을 입력하세요.'); return false; }
   if (trimmed.length > 30) { alert('이름은 30자 이내로 입력하세요.'); return false; }
-  const adder = state.user?.id || null;
-  const adderName = state.user?.name || null;
+  if (!inviterId) { alert('초대한 팀원을 선택하세요.'); return false; }
+  const inviter = state.members.find(m => m.id === inviterId);
+  if (!inviter) { alert('선택한 팀원을 찾을 수 없어요.'); return false; }
   const { data: inserted, error } = await sb.from('match_guests').insert({
     match_id: matchId,
     name: trimmed,
-    added_by_member_id: adder,
-    added_by_name: adderName
+    added_by_member_id: inviter.id,
+    added_by_name: inviter.name
   }).select().single();
   if (error) { alert('실패: ' + error.message); return false; }
 
@@ -3233,11 +3263,14 @@ function splitIntoTeams(memberIds) {
   const T = getTargetTeamCount(n);
   const maxUsable = T * MAX_TEAM_SIZE;
 
+  const isGuestId = id => typeof id === 'string' && id.startsWith('g:');
+
   // 1) 멤버별 점수 + 랜덤 tiebreak 부여
   const scored = memberIds.map(id => ({
     id,
     score: getMemberSkillScore(id),
-    rand: Math.random()
+    rand: Math.random(),
+    isGuest: isGuestId(id)
   }));
 
   // 2) 점수 내림차순 + 동률 시 랜덤 정렬
@@ -3247,10 +3280,12 @@ function splitIntoTeams(memberIds) {
   const usable = scored.slice(0, Math.min(n, maxUsable));
   const bench = scored.slice(usable.length).map(x => x.id);
 
-  // 4) LPT 그리디: 매 라운드 가장 약한(총점 낮은) 팀에 다음 멤버 배정
+  const usableRegulars = usable.filter(x => !x.isGuest);
+  const usableGuests = usable.filter(x => x.isGuest);
+
+  // 4) LPT 그리디로 정식 팀원 먼저 팀에 배정
   const teams = Array.from({ length: T }, () => ({ members: [], totalScore: 0 }));
-  for (const x of usable) {
-    // (1) 총점 낮은 팀 (2) 인원 적은 팀 (3) 랜덤
+  for (const x of usableRegulars) {
     teams.sort((a, b) =>
       (a.totalScore - b.totalScore) ||
       (a.members.length - b.members.length) ||
@@ -3260,7 +3295,31 @@ function splitIntoTeams(memberIds) {
     teams[0].totalScore += x.score;
   }
 
-  // 5) 각 팀 내부 순서는 랜덤 (실력 티어 노출 방지)
+  // 5) 용병은 초대한 팀원과 같은 팀으로 배정
+  //    - 초대자가 어느 팀에 있으면 그 팀에 (팀이 꽉 차지 않은 경우)
+  //    - 초대자가 없거나 벤치면 가장 약한 팀으로 폴백
+  for (const x of usableGuests) {
+    const guest = state.guests.find(g => g.id === x.id.slice(2));
+    const inviterId = guest?.added_by_member_id;
+    let target = null;
+    if (inviterId) {
+      target = teams.find(t => t.members.includes(inviterId));
+    }
+    if (!target || target.members.length >= MAX_TEAM_SIZE) {
+      const candidates = teams.filter(t => t.members.length < MAX_TEAM_SIZE);
+      if (candidates.length === 0) { bench.push(x.id); continue; }
+      candidates.sort((a, b) =>
+        (a.totalScore - b.totalScore) ||
+        (a.members.length - b.members.length) ||
+        (Math.random() - 0.5)
+      );
+      target = candidates[0];
+    }
+    target.members.push(x.id);
+    target.totalScore += x.score;
+  }
+
+  // 6) 각 팀 내부 순서는 랜덤 (실력 티어 노출 방지)
   return {
     teams: teams.map(t => shuffleArray(t.members)),
     bench
@@ -3875,12 +3934,14 @@ function renderAttendance() {
         const vote = getVote(match.id, m.id);
         const canEdit = isAdmin() || (state.user?.id === m.id);
         const isMe = state.user?.id === m.id;
+        const att = getAttendance(match.id, m.id);
+        const updatedRel = att?.updated_at ? formatRelativeTime(att.updated_at) : '';
         return `
           <div class="attendance-row">
             <div class="attendance-row-top">
               <div class="member-info">
                 <div class="name">${escapeHtml(m.name)}${isMe ? ' <span style="color:var(--accent);font-size:11px;">(나)</span>' : ''} <span class="attend-badge">⚽ ${getAttendCount(m.id)}회</span></div>
-                <div class="meta">${m.joined || ''} 가입</div>
+                <div class="meta">${m.joined || ''} 가입${updatedRel ? ` · <span class="attend-updated">🕒 ${updatedRel}</span>` : ''}</div>
               </div>
             </div>
             <div class="attendance-row-buttons">
@@ -3926,7 +3987,13 @@ function renderAttendance() {
       }).join('')}
 
       <div class="add-form" style="margin-top:8px;">
-        <input type="text" data-guest-input="${match.id}" placeholder="팀원명+용병" autocomplete="off" maxlength="30">
+        <select data-guest-inviter="${match.id}">
+          <option value="">-- 초대한 팀원 선택 --</option>
+          ${[...state.members].filter(m => !m.is_injured).sort((a, b) => a.name.localeCompare(b.name, 'ko')).map(m => `
+            <option value="${m.id}" ${state.user?.id === m.id ? 'selected' : ''}>${escapeHtml(m.name)}</option>
+          `).join('')}
+        </select>
+        <input type="text" data-guest-input="${match.id}" placeholder="용병 이름" autocomplete="off" maxlength="30">
         <button class="btn btn-primary add-form-btn" data-guest-add="${match.id}">+ 용병 추가</button>
       </div>
     `;
@@ -4053,9 +4120,13 @@ function renderAttendance() {
     btn.addEventListener('click', async () => {
       const matchId = btn.dataset.guestAdd;
       const input = document.querySelector(`[data-guest-input="${matchId}"]`);
+      const inviterSel = document.querySelector(`[data-guest-inviter="${matchId}"]`);
       if (!input) return;
       haptic();
-      await actionAddGuest(matchId, input.value);
+      const ok = await actionAddGuest(matchId, input.value, inviterSel?.value || '');
+      if (ok) {
+        input.value = '';
+      }
     });
   });
   document.querySelectorAll('[data-guest-input]').forEach(input => {
