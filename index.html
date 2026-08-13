@@ -3255,7 +3255,36 @@ function getMemberSkillScore(id) {
   return SKILL_SCORE[m?.skill_level] ?? 2; // 미설정 = 중급
 }
 
-function splitIntoTeams(memberIds) {
+// 지난 1주일간 같은 팀이었던 팀원 쌍을 계산 (팀메이트 다양성 확보용)
+// 반환: Map<memberId, Set<memberId>> — 용병(g:*)은 매경기 새 UUID라 제외
+function computeRecentTeammates(excludeMatchId) {
+  const teammates = new Map();
+  const now = Date.now();
+  const oneWeekAgo = now - 7 * 24 * 3600 * 1000;
+  for (const m of state.matches) {
+    if (m.id === excludeMatchId) continue;
+    if (!m.teams || !m.teams.teams) continue;
+    const start = getMatchStartTime(m);
+    if (!start) continue;
+    const t = start.getTime();
+    if (t < oneWeekAgo || t > now) continue;
+    for (const team of m.teams.teams) {
+      const realIds = team.filter(id => typeof id !== 'string' || !id.startsWith('g:'));
+      for (let i = 0; i < realIds.length; i++) {
+        for (let j = i + 1; j < realIds.length; j++) {
+          const a = realIds[i], b = realIds[j];
+          if (!teammates.has(a)) teammates.set(a, new Set());
+          if (!teammates.has(b)) teammates.set(b, new Set());
+          teammates.get(a).add(b);
+          teammates.get(b).add(a);
+        }
+      }
+    }
+  }
+  return teammates;
+}
+
+function splitIntoTeams(memberIds, currentMatchId = null) {
   const n = memberIds.length;
   if (n === 0) return { teams: [], bench: [] };
   if (n < 4) return { teams: [shuffleArray(memberIds)], bench: [] };
@@ -3264,6 +3293,16 @@ function splitIntoTeams(memberIds) {
   const maxUsable = T * MAX_TEAM_SIZE;
 
   const isGuestId = id => typeof id === 'string' && id.startsWith('g:');
+
+  // 최근 팀메이트 맵 (지난 1주일)
+  const recentMap = computeRecentTeammates(currentMatchId);
+  const recentPenalty = (memberId, team) => {
+    const set = recentMap.get(memberId);
+    if (!set) return 0;
+    let count = 0;
+    for (const id of team.members) if (set.has(id)) count++;
+    return count;
+  };
 
   // 1) 멤버별 점수 + 랜덤 tiebreak 부여
   const scored = memberIds.map(id => ({
@@ -3284,10 +3323,12 @@ function splitIntoTeams(memberIds) {
   const usableGuests = usable.filter(x => x.isGuest);
 
   // 4) LPT 그리디로 정식 팀원 먼저 팀에 배정
+  //    - 우선순위: (1) 총점 낮은 팀 (2) 최근 팀메이트 적은 팀 (3) 인원 적은 팀 (4) 랜덤
   const teams = Array.from({ length: T }, () => ({ members: [], totalScore: 0 }));
   for (const x of usableRegulars) {
     teams.sort((a, b) =>
       (a.totalScore - b.totalScore) ||
+      (recentPenalty(x.id, a) - recentPenalty(x.id, b)) ||
       (a.members.length - b.members.length) ||
       (Math.random() - 0.5)
     );
@@ -3360,7 +3401,7 @@ async function actionGenerateTeams(match, opts = {}) {
     if (!opts.silent) alert('참석 인원이 4명 미만이라 팀을 짤 수 없어요.');
     return;
   }
-  const split = splitIntoTeams(ids);
+  const split = splitIntoTeams(ids, match.id);
   const prevCount = (match.teams && match.teams.shuffle_count) || 0;
   const teamsData = {
     teams: split.teams,
