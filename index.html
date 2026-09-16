@@ -2611,13 +2611,13 @@ async function actionToggleInjury(id, nextValue) {
   render();
 }
 
-async function actionPay(memberId, month, method) {
+async function actionPay(memberId, month, method, amount) {
   if (!isAdmin()) { alert('운영자만 가능해요.'); return; }
   const txId = `${method.toUpperCase()}-${Math.random().toString(36).slice(2,7).toUpperCase()}`;
   const { error } = await sb.from('payments').upsert({
     member_id: memberId, month, method,
     paid_at: new Date().toISOString(), tx_id: txId,
-    amount: state.config.monthly_fee
+    amount: amount ?? state.config.monthly_fee
   }, { onConflict: 'member_id,month' });
   if (error) { alert('실패: ' + error.message); return; }
   await loadAll();
@@ -4388,7 +4388,8 @@ function renderFees() {
           </div>
           ${isAdmin() ? `
             <div class="fees-row-bottom">
-              <button class="btn btn-primary" data-pay-mark="${m.id}" style="width:100%;">✓ 납부 완료</button>
+              <button class="btn btn-primary" data-pay-mark="${m.id}" style="flex:1;">✓ 납부 완료</button>
+              <button class="btn" data-pay-half="${m.id}" style="flex:0 0 auto; font-size:12px; padding:0 10px; white-space:nowrap;" title="월 중간 투입 (15,000원)">½ 월중 15,000</button>
             </div>
           ` : ''}
         </div>
@@ -4438,6 +4439,16 @@ function renderFees() {
     btn.addEventListener('click', async () => {
       haptic();
       await actionPay(btn.dataset.payMark, month, 'transfer');
+    });
+  });
+  document.querySelectorAll('[data-pay-half]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      haptic();
+      const mid = btn.dataset.payHalf;
+      const target = state.members.find(x => x.id === mid);
+      const name = target ? target.name : '';
+      if (!confirm(`${name} 월 중간 투입 50% 회비 15,000원으로 납부 처리할까요?`)) return;
+      await actionPay(mid, month, 'transfer', 15000);
     });
   });
   document.querySelectorAll('[data-undo]').forEach(btn => {
