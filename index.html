@@ -3721,8 +3721,9 @@ function renderOverview() {
   const month = state.config.current_month;
   const fee = state.config.monthly_fee;
   const activeForFee = state.members.filter(m => !m.is_injured);
-  const paid = activeForFee.filter(m => isPaid(m.id, month)).length;
-  const collected = paid * fee;
+  const paidList = activeForFee.filter(m => isPaid(m.id, month));
+  const paid = paidList.length;
+  const collected = paidList.reduce((sum, m) => sum + (getPayment(m.id, month)?.amount ?? fee), 0);
   const dDay = match ? Math.max(0, Math.ceil((new Date(match.match_date) - new Date()) / 86400000)) : 0;
 
   if (state.members.length === 0 && state.matches.length === 0) {
@@ -4234,7 +4235,7 @@ function renderFees() {
   const activeMembers = state.members.filter(m => !m.is_injured);
   const paidMembers = activeMembers.filter(m => isPaid(m.id, month));
   const unpaidMembers = activeMembers.filter(m => !isPaid(m.id, month));
-  const collected = paidMembers.length * fee;
+  const collected = paidMembers.reduce((sum, m) => sum + (getPayment(m.id, month)?.amount ?? fee), 0);
   const expected = activeMembers.length * fee;
   const percent = expected > 0 ? Math.round((collected / expected) * 100) : 0;
 
