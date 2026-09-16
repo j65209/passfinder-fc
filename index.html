@@ -1200,10 +1200,19 @@
     font-weight: 800;
     margin-right: 2px;
   }
-  .team-color-0 .keeper-order { background: var(--accent); color: #fff; }
+  .team-color-0 .keeper-order { background: var(--accent); color: #000; }
   .team-color-1 .keeper-order { background: var(--info); color: #fff; }
-  .team-color-2 .keeper-order { background: var(--warning); color: #fff; }
+  .team-color-2 .keeper-order { background: var(--warning); color: #000; }
   .team-color-3 .keeper-order { background: var(--danger); color: #fff; }
+  .keeper-order-label {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.3px;
+    margin-right: 2px;
+  }
   .team-member-chip.is-me {
     border-color: var(--accent);
     color: var(--accent);
@@ -3626,7 +3635,7 @@ function renderTeamsSection(match) {
             <div class="team-card-count">${team.length}명</div>
           </div>
           <div class="team-members-list">
-            ${team.length > 0 ? team.map((id, pi) => renderChip(id, idx, pi + 1)).join('') : '<span style="color:var(--text-dim);font-size:12px;">비어있음</span>'}
+            ${team.length > 0 ? '<span class="keeper-order-label">키퍼 순서 →</span>' + team.map((id, pi) => renderChip(id, idx, pi + 1)).join('') : '<span style="color:var(--text-dim);font-size:12px;">비어있음</span>'}
           </div>
         </div>
       `).join('')}
