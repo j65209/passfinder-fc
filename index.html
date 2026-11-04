@@ -3260,10 +3260,11 @@ function shuffleArray(arr) {
 // 15~23명: 3팀 (5+5+5 부터, 15명일 때 3파전 가능)
 // 24명~: 4팀 (6+6+6+6 부터)
 // 팀 인원이 최대치(7명)을 넘어서면 초과 인원은 교체 대기로 빠짐
+// 팀 간 인원 차이는 항상 1명 이내 (18명 = 6+6+6, 17명 = 6+6+5) — 실력 밸런스·용병 동반보다 우선
 //
 // 실력 밸런스 알고리즘: LPT(Longest Processing Time) 그리디
 //   - 상급=3, 중급=2, 초급=1, 미설정/용병=2 (중급 가정)
-//   - 점수 내림차순 정렬 후, 각 멤버를 현재 총점이 가장 낮은 팀에 배정
+//   - 점수 내림차순 정렬 후, 각 멤버를 정원이 남은 팀 중 현재 총점이 가장 낮은 팀에 배정
 //   - 동률 시 (1) 인원 수가 적은 팀 (2) 랜덤 으로 결정
 //   - 매번 셔플마다 동률 랜덤 + 동점자 랜덤으로 변주 유지
 function getTargetTeamCount(n) {
@@ -3346,48 +3347,62 @@ function splitIntoTeams(memberIds, currentMatchId = null) {
   const usable = scored.slice(0, Math.min(n, maxUsable));
   const bench = scored.slice(usable.length).map(x => x.id);
 
-  const usableRegulars = usable.filter(x => !x.isGuest);
-  const usableGuests = usable.filter(x => x.isGuest);
-
-  // 4) LPT 그리디로 정식 팀원 먼저 팀에 배정
-  //    - 우선순위: (1) 총점 낮은 팀 (2) 최근 팀메이트 적은 팀 (3) 인원 적은 팀 (4) 랜덤
+  // 4) 팀 정원 — 인원 차이가 1명을 넘지 않게 (18명 = 6,6,6 / 17명 = 6,6,5)
+  //    나눠떨어지지 않을 때 1명 더 받는 팀은 미리 정하지 않음 (실력 밸런스에 맞춰 배정 중 결정)
+  const base = Math.floor(usable.length / T);
+  const extra = usable.length % T;
   const teams = Array.from({ length: T }, () => ({ members: [], totalScore: 0 }));
-  for (const x of usableRegulars) {
-    teams.sort((a, b) =>
+  const roomOf = t => {
+    const biggerTeams = teams.filter(o => o.members.length > base).length;
+    return (biggerTeams < extra ? base + 1 : base) - t.members.length;
+  };
+  const placed = new Set();
+  const assign = (t, x) => {
+    t.members.push(x.id);
+    t.totalScore += x.score;
+    placed.add(x.id);
+  };
+  // needed명이 함께 들어갈 팀 중에서 선택 (그런 팀이 없으면 자리가 가장 많은 팀)
+  // 우선순위: (1) 총점 낮은 팀 (2) 최근 팀메이트 적은 팀 (3) 인원 적은 팀 (4) 랜덤
+  const pickTeam = (x, needed) => {
+    const fit = Math.min(needed, Math.max(...teams.map(roomOf)));
+    return teams.filter(t => roomOf(t) >= fit).sort((a, b) =>
       (a.totalScore - b.totalScore) ||
       (recentPenalty(x.id, a) - recentPenalty(x.id, b)) ||
       (a.members.length - b.members.length) ||
       (Math.random() - 0.5)
-    );
-    teams[0].members.push(x.id);
-    teams[0].totalScore += x.score;
-  }
+    )[0];
+  };
 
-  // 5) 용병은 초대한 팀원과 같은 팀으로 배정
-  //    - 초대자가 어느 팀에 있으면 그 팀에 (팀이 꽉 차지 않은 경우)
-  //    - 초대자가 없거나 벤치면 가장 약한 팀으로 폴백
-  for (const x of usableGuests) {
+  // 5) 용병을 데려온 팀원부터 용병과 묶어서 배정 (많이 데려온 순)
+  //    - 한 팀에 다 못 들어가면 남은 용병은 6번에서 다른 팀으로
+  //    - 초대자가 없거나 벤치면 묶지 않음
+  const usableById = new Map(usable.map(x => [x.id, x]));
+  const guestsByInviter = new Map();
+  for (const x of usable) {
+    if (!x.isGuest) continue;
     const guest = state.guests.find(g => g.id === x.id.slice(2));
     const inviterId = guest?.added_by_member_id;
-    let target = null;
-    if (inviterId) {
-      target = teams.find(t => t.members.includes(inviterId));
+    if (!usableById.has(inviterId)) continue;
+    if (!guestsByInviter.has(inviterId)) guestsByInviter.set(inviterId, []);
+    guestsByInviter.get(inviterId).push(x);
+  }
+  const groups = [...guestsByInviter.entries()].sort((a, b) => b[1].length - a[1].length);
+  for (const [inviterId, guests] of groups) {
+    const inviter = usableById.get(inviterId);
+    const target = pickTeam(inviter, 1 + guests.length);
+    assign(target, inviter);
+    for (const x of guests) {
+      if (roomOf(target) > 0) assign(target, x);
     }
-    if (!target || target.members.length >= MAX_TEAM_SIZE) {
-      const candidates = teams.filter(t => t.members.length < MAX_TEAM_SIZE);
-      if (candidates.length === 0) { bench.push(x.id); continue; }
-      candidates.sort((a, b) =>
-        (a.totalScore - b.totalScore) ||
-        (a.members.length - b.members.length) ||
-        (Math.random() - 0.5)
-      );
-      target = candidates[0];
-    }
-    target.members.push(x.id);
-    target.totalScore += x.score;
   }
 
-  // 6) 각 팀 내부 순서는 랜덤 (실력 티어 노출 방지)
+  // 6) 나머지는 LPT 그리디로 배정 (usable은 이미 점수 내림차순)
+  for (const x of usable) {
+    if (!placed.has(x.id)) assign(pickTeam(x, 1), x);
+  }
+
+  // 7) 각 팀 내부 순서는 랜덤 (실력 티어 노출 방지)
   return {
     teams: teams.map(t => shuffleArray(t.members)),
     bench
