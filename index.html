@@ -786,6 +786,14 @@
     vertical-align: middle;
     white-space: nowrap;
   }
+  /* 팀원 카드 우측 상단용 큰 참석횟수 배지 */
+  .attend-badge.attend-badge-lg {
+    font-size: 14px;
+    padding: 6px 12px;
+    border-radius: 12px;
+    margin-left: 0;
+    flex-shrink: 0;
+  }
 
   /* MEMBER PROFILE BADGES */
   .profile-badges {
@@ -2068,6 +2076,18 @@
     column-gap: 6px;
     row-gap: 4px;
   }
+  /* 이름 줄 + 우측 상단 참석횟수 */
+  .member-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .member-card-head .name-line {
+    flex: 1;
+    min-width: 0;
+    padding-top: 5px; /* 첫 줄을 배지 가운데 높이에 맞춤 */
+  }
   .member-card .name-line .phone-sub {
     font-size: 13px;
     font-weight: 400;
@@ -2327,6 +2347,12 @@ let state = {
 
 function isAdmin() { return state.user?.role === 'admin'; }
 function isVisitor() { return state.user?.role === 'visitor'; }
+// 회비 집계·명단에서 빼는 운영자 (팀원 명단·참석 투표·총 팀원 수에는 그대로 표시)
+// 다른 운영진도 빼려면 이 배열에 이름만 추가
+const FEE_EXCLUDE_NAMES = ['전승훈'];
+function feeMembers() {
+  return state.members.filter(m => !FEE_EXCLUDE_NAMES.includes((m.name || '').replace(/\s/g, '')));
+}
 function getCurrentMonth() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
@@ -3161,7 +3187,7 @@ async function actionToggleUsageWithdrawn(id) {
 
 async function actionPayAll() {
   const month = state.config.current_month;
-  const unpaid = state.members.filter(m => !m.is_injured && !isPaid(m.id, month));
+  const unpaid = feeMembers().filter(m => !m.is_injured && !isPaid(m.id, month));
   if (unpaid.length === 0) { alert('🎉 이미 모두 납부 완료!'); return; }
 
   const list = unpaid.map(m => '· ' + m.name).join('\n');
@@ -3763,7 +3789,8 @@ function renderOverview() {
     : 0;
   const month = state.config.current_month;
   const fee = state.config.monthly_fee;
-  const activeForFee = state.members.filter(m => !m.is_injured);
+  const feeList = feeMembers();
+  const activeForFee = feeList.filter(m => !m.is_injured);
   const paidList = activeForFee.filter(m => isPaid(m.id, month));
   const paid = paidList.length;
   const collected = paidList.reduce((sum, m) => sum + (getPayment(m.id, month)?.amount ?? fee), 0);
@@ -3803,7 +3830,7 @@ function renderOverview() {
       <div class="stat-card" data-go="fees" style="--accent-color: var(--info);">
         <div class="label">이번 달 회비</div>
         <div class="value">${paid}<span style="font-size:20px;color:var(--text-dim);">/${activeForFee.length}</span></div>
-        <div class="sub">${(collected/10000).toFixed(0)}만원 수금${state.members.length - activeForFee.length > 0 ? ` · 🤕${state.members.length - activeForFee.length}` : ''}</div>
+        <div class="sub">${(collected/10000).toFixed(0)}만원 수금${feeList.length - activeForFee.length > 0 ? ` · 🤕${feeList.length - activeForFee.length}` : ''}</div>
       </div>
       <div class="stat-card" data-go="members" style="--accent-color: var(--warning);">
         <div class="label">총 팀원</div>
@@ -4274,8 +4301,8 @@ function renderAttendance() {
 function renderFees() {
   const month = state.config.current_month;
   const fee = state.config.monthly_fee;
-  const injuredMembers = state.members.filter(m => m.is_injured);
-  const activeMembers = state.members.filter(m => !m.is_injured);
+  const injuredMembers = feeMembers().filter(m => m.is_injured);
+  const activeMembers = feeMembers().filter(m => !m.is_injured);
   const paidMembers = activeMembers.filter(m => isPaid(m.id, month));
   const unpaidMembers = activeMembers.filter(m => !isPaid(m.id, month));
   const collected = paidMembers.reduce((sum, m) => sum + (getPayment(m.id, month)?.amount ?? fee), 0);
@@ -4511,7 +4538,7 @@ function renderFees() {
     btn.addEventListener('click', () => {
       haptic();
       const m = btn.dataset.unpaidReset;
-      const unpaid = state.members.filter(x => !x.is_injured && !isPaid(x.id, m));
+      const unpaid = feeMembers().filter(x => !x.is_injured && !isPaid(x.id, m));
       const fresh = buildUnpaidFeeMessage(m, fee, unpaid, state.config);
       const ta = document.querySelector(`[data-unpaid-msg="${m}"]`);
       if (ta) ta.value = fresh;
@@ -4583,12 +4610,14 @@ function renderMembers() {
       const injured = !!m.is_injured;
       return `
       <div class="member-card${injured ? ' is-injured' : ''}">
-        <div class="name-line">
-          <span>${escapeHtml(m.name)}</span>
-          ${state.user?.id === m.id ? '<span class="me-mark">(나)</span>' : ''}
-          ${m.phone ? `<span class="phone-sub">${formatPhone(m.phone)}</span>` : ''}
-          <span class="attend-badge">⚽ ${getAttendCount(m.id)}회</span>
-          ${injured ? '<span class="injury-badge">🤕 부상 이월</span>' : ''}
+        <div class="member-card-head">
+          <div class="name-line">
+            <span>${escapeHtml(m.name)}</span>
+            ${state.user?.id === m.id ? '<span class="me-mark">(나)</span>' : ''}
+            ${m.phone ? `<span class="phone-sub">${formatPhone(m.phone)}</span>` : ''}
+            ${injured ? '<span class="injury-badge">🤕 부상 이월</span>' : ''}
+          </div>
+          <span class="attend-badge attend-badge-lg">⚽ ${getAttendCount(m.id)}회</span>
         </div>
         <div class="profile-badges">
           <button class="profile-badge ${isUnset(footLabel) ? 'unset' : ''}" data-profile-edit="${m.id}">🦶 ${footLabel}</button>
