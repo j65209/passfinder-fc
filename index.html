@@ -2353,6 +2353,15 @@ const FEE_EXCLUDE_NAMES = ['전승훈'];
 function feeMembers() {
   return state.members.filter(m => !FEE_EXCLUDE_NAMES.includes((m.name || '').replace(/\s/g, '')));
 }
+// 운영자 PIN 으로 들어온 사람 = 이 팀원 본인 (참석 투표 맨 위 고정 · (나) 표시)
+const ADMIN_SELF_NAME = '전승훈';
+// '본인' 팀원 id: 팀원 로그인은 그 팀원, 운영자 로그인은 ADMIN_SELF_NAME 팀원, 방문자는 없음
+function selfMemberId() {
+  if (state.user?.id) return state.user.id;
+  if (!isAdmin()) return null;
+  const me = state.members.find(m => (m.name || '').replace(/\s/g, '') === ADMIN_SELF_NAME);
+  return me ? me.id : null;
+}
 function getCurrentMonth() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
@@ -4034,7 +4043,7 @@ function renderAttendance() {
 
       ${(() => {
         const voteOrder = { maybe: 0, yes: 1, no: 2 };
-        const myId = state.user?.id;
+        const myId = selfMemberId();
         return [...state.members].filter(m => !m.is_injured).sort((a, b) => {
           if (myId) {
             if (a.id === myId) return -1;
@@ -4045,7 +4054,7 @@ function renderAttendance() {
       })().map(m => {
         const vote = getVote(match.id, m.id);
         const canEdit = isAdmin() || (state.user?.id === m.id);
-        const isMe = state.user?.id === m.id;
+        const isMe = m.id === selfMemberId();
         const att = getAttendance(match.id, m.id);
         const updatedRel = att?.updated_at ? formatRelativeTime(att.updated_at) : '';
         return `
